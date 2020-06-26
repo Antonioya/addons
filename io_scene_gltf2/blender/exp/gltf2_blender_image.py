@@ -14,7 +14,7 @@
 
 import bpy
 import os
-from typing import Optional
+from typing import Optional, Tuple
 import numpy as np
 import tempfile
 import enum
@@ -121,179 +121,87 @@ class ExportImage:
         return self.__encode_from_image(self.blender_image())
 
     def __encode_unhappy(self) -> bytes:
-        result = self.__encode_unhappy_with_compositor()
-        if result is not None:
-            return result
-        return self.__encode_unhappy_with_numpy()
+        # We need to assemble the image out of channels.
+        # Do it with numpy and image.pixels.
 
-    def __encode_unhappy_with_compositor(self) -> bytes:
-        # Builds a Compositor graph that will build the correct image
-        # from the description in self.fills.
-        #
-        #     [ Image ]->[ Sep RGBA ]    [ Comb RGBA ]
-        #                [  src_chan]--->[dst_chan   ]--->[ Output ]
-        #
-        # This is hacky, but is about 4x faster than using
-        # __encode_unhappy_with_numpy. There are some caveats though:
-
-        # First, we can't handle pre-multiplied alpha.
-        if Channel.A in self.fills:
-            return None
-
-        # Second, in order to get the same results as using image.pixels
-        # (which ignores the colorspace), we need to use the 'Non-Color'
-        # colorspace for all images and set the output device to 'None'. But
-        # setting the colorspace on dirty images discards their changes.
-        # So we can't handle dirty images that aren't already 'Non-Color'.
-        for fill in self.fills:
+        # Find all Blender images used
+        images = []
+        for fill in self.fills.values():
             if isinstance(fill, FillImage):
-                if fill.image.is_dirty:
-                    if fill.image.colorspace_settings.name != 'Non-Color':
-                        return None
+                if fill.image not in images:
+                    images.append(fill.image)
 
-        tmp_scene = None
-        orig_colorspaces = {}  # remembers original colorspaces
-        try:
-            tmp_scene = bpy.data.scenes.new('##gltf-export:tmp-scene##')
-            tmp_scene.use_nodes = True
-            node_tree = tmp_scene.node_tree
-            for node in node_tree.nodes:
-                node_tree.nodes.remove(node)
-
-            out = node_tree.nodes.new('CompositorNodeComposite')
-            comb_rgba = node_tree.nodes.new('CompositorNodeCombRGBA')
-            for i in range(4):
-                comb_rgba.inputs[i].default_value = 1.0
-            node_tree.links.new(out.inputs['Image'], comb_rgba.outputs['Image'])
-
-            img_size = None
-            for dst_chan, fill in self.fills.items():
-                if not isinstance(fill, FillImage):
-                    continue
-
-                img = node_tree.nodes.new('CompositorNodeImage')
-                img.image = fill.image
-                sep_rgba = node_tree.nodes.new('CompositorNodeSepRGBA')
-                node_tree.links.new(sep_rgba.inputs['Image'], img.outputs['Image'])
-                node_tree.links.new(comb_rgba.inputs[dst_chan], sep_rgba.outputs[fill.src_chan])
-
-                if fill.image.colorspace_settings.name != 'Non-Color':
-                    if fill.image.name not in orig_colorspaces:
-                        orig_colorspaces[fill.image.name] = \
-                            fill.image.colorspace_settings.name
-                    fill.image.colorspace_settings.name = 'Non-Color'
-
-                if img_size is None:
-                    img_size = fill.image.size[:2]
-                else:
-                    # All images should be the same size (should be
-                    # guaranteed by gather_texture_info)
-                    assert img_size == fill.image.size[:2]
-
-            width, height = img_size or (1, 1)
-            return _render_temp_scene(
-                tmp_scene=tmp_scene,
-                width=width,
-                height=height,
-                file_format=self.file_format,
-                color_mode='RGB',
-                colorspace='None',
-            )
-
-        finally:
-            for img_name, colorspace in orig_colorspaces.items():
-                bpy.data.images[img_name].colorspace_settings.name = colorspace
-
-            if tmp_scene is not None:
-                bpy.data.scenes.remove(tmp_scene, do_unlink=True)
-
-
-    def __encode_unhappy_with_numpy(self):
-        # Read the pixels of each image with image.pixels, put them into a
-        # numpy, and assemble the desired image that way. This is the slowest
-        # method, and the conversion to Python data eats a lot of memory, so
-        # it's only used as a last resort.
-        result = None
-
-        img_fills = {
-            chan: fill
-            for chan, fill in self.fills.items()
-            if isinstance(fill, FillImage)
-        }
-        # Loop over images instead of dst_chans; ensures we only decode each
-        # image once even if it's used in multiple channels.
-        image_names = list(set(fill.image.name for fill in img_fills.values()))
-        for image_name in image_names:
-            image = bpy.data.images[image_name]
-
-            if result is None:
-                result = np.ones((image.size[0], image.size[1], 4), np.float32)
-            # Images should all be the same size (should be guaranteed by
-            # gather_texture_info).
-            assert (image.size[0], image.size[1]) == result.shape[:2]
-
-            # Slow and eats all your memory.
-            pixels = np.array(image.pixels[:])
-
-            pixels = pixels.reshape((image.size[0], image.size[1], image.channels))
-
-            for dst_chan, img_fill in img_fills.items():
-                if img_fill.image == image:
-                    result[:, :, dst_chan] = pixels[:, :, img_fill.src_chan]
-
-            pixels = None  # GC this please
-
-        if result is None:
+        if not images:
             # No ImageFills; use a 1x1 white pixel
-            result = np.array([1.0, 1.0, 1.0, 1.0])
-            result = result.reshape((1, 1, 4))
+            pixels = np.array([1.0, 1.0, 1.0, 1.0])
+            return self.__encode_from_numpy_array(pixels, (1, 1))
 
-        return self.__encode_from_numpy_array(result)
+        width = max(image.size[0] for image in images)
+        height = max(image.size[1] for image in images)
 
-    def __encode_from_numpy_array(self, array: np.ndarray) -> bytes:
-        tmp_image = None
-        try:
-            tmp_image = bpy.data.images.new(
+        out_buf = np.ones(width * height * 4, np.float32)
+        tmp_buf = np.empty(width * height * 4, np.float32)
+
+        for image in images:
+            if image.size[0] == width and image.size[1] == height:
+                image.pixels.foreach_get(tmp_buf)
+            else:
+                # Image is the wrong size; make a temp copy and scale it.
+                with TmpImageGuard() as guard:
+                    _make_temp_image_copy(guard, src_image=image)
+                    tmp_image = guard.image
+                    tmp_image.scale(width, height)
+                    tmp_image.pixels.foreach_get(tmp_buf)
+
+            # Copy any channels for this image to the output
+            for dst_chan, fill in self.fills.items():
+                if isinstance(fill, FillImage) and fill.image == image:
+                    out_buf[int(dst_chan)::4] = tmp_buf[int(fill.src_chan)::4]
+
+        tmp_buf = None  # GC this
+
+        return self.__encode_from_numpy_array(out_buf, (width, height))
+
+    def __encode_from_numpy_array(self, pixels: np.ndarray, dim: Tuple[int, int]) -> bytes:
+        with TmpImageGuard() as guard:
+            guard.image = bpy.data.images.new(
                 "##gltf-export:tmp-image##",
-                width=array.shape[0],
-                height=array.shape[1],
+                width=dim[0],
+                height=dim[1],
                 alpha=Channel.A in self.fills,
             )
-            assert tmp_image.channels == 4  # 4 regardless of the alpha argument above.
+            tmp_image = guard.image
 
-            # Also slow and eats all your memory.
-            tmp_image.pixels = array.flatten().tolist()
+            tmp_image.pixels.foreach_set(pixels)
 
             return _encode_temp_image(tmp_image, self.file_format)
 
-        finally:
-            if tmp_image is not None:
-                bpy.data.images.remove(tmp_image, do_unlink=True)
-
     def __encode_from_image(self, image: bpy.types.Image) -> bytes:
         # See if there is an existing file we can use.
+        data = None
         if image.source == 'FILE' and image.file_format == self.file_format and \
                 not image.is_dirty:
             if image.packed_file is not None:
-                return image.packed_file.data
+                data = image.packed_file.data
             else:
                 src_path = bpy.path.abspath(image.filepath_raw)
                 if os.path.isfile(src_path):
                     with open(src_path, 'rb') as f:
-                        return f.read()
+                        data = f.read()
+        # Check magic number is right
+        if data:
+            if self.file_format == 'PNG':
+                if data.startswith(b'\x89PNG'):
+                    return data
+            elif self.file_format == 'JPEG':
+                if data.startswith(b'\xff\xd8\xff'):
+                    return data
 
         # Copy to a temp image and save.
-        tmp_image = None
-        try:
-            tmp_image = image.copy()
-            tmp_image.update()
-            if image.is_dirty:
-                tmp_image.pixels = image.pixels[:]
-
+        with TmpImageGuard() as guard:
+            _make_temp_image_copy(guard, src_image=image)
+            tmp_image = guard.image
             return _encode_temp_image(tmp_image, self.file_format)
-        finally:
-            if tmp_image is not None:
-                bpy.data.images.remove(tmp_image, do_unlink=True)
 
 
 def _encode_temp_image(tmp_image: bpy.types.Image, file_format: str) -> bytes:
@@ -309,34 +217,28 @@ def _encode_temp_image(tmp_image: bpy.types.Image, file_format: str) -> bytes:
             return f.read()
 
 
-def _render_temp_scene(
-    tmp_scene: bpy.types.Scene,
-    width: int,
-    height: int,
-    file_format: str,
-    color_mode: str,
-    colorspace: str,
-) -> bytes:
-    """Set render settings, render to a file, and read back."""
-    tmp_scene.render.resolution_x = width
-    tmp_scene.render.resolution_y = height
-    tmp_scene.render.resolution_percentage = 100
-    tmp_scene.display_settings.display_device = colorspace
-    tmp_scene.render.image_settings.color_mode = color_mode
-    tmp_scene.render.dither_intensity = 0.0
+class TmpImageGuard:
+    """Guard to automatically clean up temp images (use it with `with`)."""
+    def __init__(self):
+        self.image = None
 
-    # Turn off all metadata (stuff like use_stamp_date, etc.)
-    for attr in dir(tmp_scene.render):
-        if attr.startswith('use_stamp_'):
-            setattr(tmp_scene.render, attr, False)
+    def __enter__(self):
+        return self
 
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        tmpfilename = tmpdirname + "/img"
-        tmp_scene.render.filepath = tmpfilename
-        tmp_scene.render.use_file_extension = False
-        tmp_scene.render.image_settings.file_format = file_format
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.image is not None:
+            bpy.data.images.remove(self.image, do_unlink=True)
 
-        bpy.ops.render.render(scene=tmp_scene.name, write_still=True)
 
-        with open(tmpfilename, "rb") as f:
-            return f.read()
+def _make_temp_image_copy(guard: TmpImageGuard, src_image: bpy.types.Image):
+    """Makes a temporary copy of src_image. Will be cleaned up with guard."""
+    guard.image = src_image.copy()
+    tmp_image = guard.image
+
+    tmp_image.update()
+
+    if src_image.is_dirty:
+        # Unsaved changes aren't copied by .copy(), so do them ourselves
+        tmp_buf = np.empty(src_image.size[0] * src_image.size[1] * 4, np.float32)
+        src_image.pixels.foreach_get(tmp_buf)
+        tmp_image.pixels.foreach_set(tmp_buf)

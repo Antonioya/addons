@@ -60,6 +60,7 @@ class add_mesh_bolt(Operator, AddObjectHelper):
             )
     # Head Types
     Model_Type_List = [('bf_Head_Hex', 'HEX', 'Hex Head'),
+                       ('bf_Head_12Pnt', '12 POINT', '12 Point Head'),
                         ('bf_Head_Cap', 'CAP', 'Cap Head'),
                         ('bf_Head_Dome', 'DOME', 'Dome Head'),
                         ('bf_Head_Pan', 'PAN', 'Pan Head'),
@@ -73,6 +74,7 @@ class add_mesh_bolt(Operator, AddObjectHelper):
     # Bit Types
     Bit_Type_List = [('bf_Bit_None', 'NONE', 'No Bit Type'),
                     ('bf_Bit_Allen', 'ALLEN', 'Allen Bit Type'),
+                    ('bf_Bit_Torx', 'TORX', 'Torx Bit Type'),
                     ('bf_Bit_Philips', 'PHILLIPS', 'Phillips Bit Type')]
     bf_Bit_Type: EnumProperty(
             attr='bf_Bit_Type',
@@ -82,7 +84,8 @@ class add_mesh_bolt(Operator, AddObjectHelper):
             )
     # Nut Types
     Nut_Type_List = [('bf_Nut_Hex', 'HEX', 'Hex Nut'),
-                    ('bf_Nut_Lock', 'LOCK', 'Lock Nut')]
+                    ('bf_Nut_Lock', 'LOCK', 'Lock Nut'),
+                    ('bf_Nut_12Pnt', '12 POINT', '12 Point Nut')]
     bf_Nut_Type: EnumProperty(
             attr='bf_Nut_Type',
             name='Nut Type',
@@ -129,6 +132,30 @@ class add_mesh_bolt(Operator, AddObjectHelper):
             description='Flat Distance of the Allen Bit',
             unit='LENGTH',
             )
+    # Torx Size Types
+    Torx_Size_Type_List = [('bf_Torx_T10', 'T10', 'T10'),
+                    ('bf_Torx_T20', 'T20', 'T20'),
+                    ('bf_Torx_T25', 'T25', 'T25'),
+                    ('bf_Torx_T30', 'T30', 'T30'),
+                    ('bf_Torx_T40', 'T40', 'T40'),
+                    ('bf_Torx_T50', 'T50', 'T50'),
+                    ('bf_Torx_T55', 'T55', 'T55'),
+                    ]
+    
+    bf_Torx_Size_Type: EnumProperty(
+            attr='bf_Torx_Size_Type',
+            name='Torx Size',
+            description='Size of the Torx Bit',
+            items=Torx_Size_Type_List, default='bf_Torx_T20'
+            )
+    bf_Torx_Bit_Depth: FloatProperty(
+            attr='bf_Torx_Bit_Depth',
+            name='Bit Depth', default=1.5,
+            min=0, soft_min=0,
+            max=MAX_INPUT_NUMBER,
+            description='Depth of the Torx Bit',
+            unit='LENGTH',
+            )
     bf_Hex_Head_Height: FloatProperty(
             attr='bf_Hex_Head_Height',
             name='Head Height', default=2,
@@ -142,6 +169,29 @@ class add_mesh_bolt(Operator, AddObjectHelper):
             min=0, soft_min=0,
             max=MAX_INPUT_NUMBER,
             description='Flat Distance of the Hex Head',
+            unit='LENGTH',
+            )
+    bf_12_Point_Head_Height: FloatProperty(
+            attr='bf_12_Point_Head_Height',
+            name='Head Height', default=3.0,
+            min=0, soft_min=0, max=MAX_INPUT_NUMBER,
+            description='Height of the 12 Point Head',
+            unit='LENGTH',
+            )
+    bf_12_Point_Head_Flat_Distance: FloatProperty(
+            attr='bf_12_Point_Head_Flat_Distance',
+            name='Flat Dist', default=3.0,
+            min=0.001, soft_min=0,    #limit to 0.001 to avoid calculation error
+            max=MAX_INPUT_NUMBER,
+            description='Flat Distance of the 12 Point Head',
+            unit='LENGTH',
+            )
+    bf_12_Point_Head_Flange_Dia: FloatProperty(
+            attr='bf_12_Point_Head_Flange_Dia',
+            name='12 Point Head Flange Dia', default=5.5,
+            min=0, soft_min=0,
+            max=MAX_INPUT_NUMBER,
+            description='Flange diameter of the 12 point Head',
             unit='LENGTH',
             )
     bf_CounterSink_Head_Dia: FloatProperty(
@@ -265,7 +315,31 @@ class add_mesh_bolt(Operator, AddObjectHelper):
             description='Flat distance of the Hex Nut',
             unit='LENGTH',
             )
-
+    bf_12_Point_Nut_Height: FloatProperty(
+            attr='bf_12_Point_Nut_Height',
+            name='12 Point Nut Height', default=2.4000000953674316,
+            min=0, soft_min=0,
+            max=MAX_INPUT_NUMBER,
+            description='Height of the 12 Point Nut',
+            unit='LENGTH',
+            )
+    
+    bf_12_Point_Nut_Flat_Distance: FloatProperty(
+            attr='bf_12_Point_Nut_Flat_Distance',
+            name='12 Point Nut Flat Dist', default=3.0,
+            min=0.001, soft_min=0,    #limit to 0.001 to avoid calculation error
+            max=MAX_INPUT_NUMBER,
+            description='Flat distance of the 12 point Nut',
+            unit='LENGTH',
+            )
+    bf_12_Point_Nut_Flange_Dia: FloatProperty(
+            attr='bf_12_Point_Nut_Flange_Dia',
+            name='12 Point Nut Flange Dia', default=5.5,
+            min=0, soft_min=0,
+            max=MAX_INPUT_NUMBER,
+            description='Flange diameter of the 12 point Nut',
+            unit='LENGTH',
+            )
     def draw(self, context):
         layout = self.layout
         col = layout.column()
@@ -282,6 +356,9 @@ class add_mesh_bolt(Operator, AddObjectHelper):
             elif self.bf_Bit_Type == 'bf_Bit_Allen':
                 col.prop(self, 'bf_Allen_Bit_Depth')
                 col.prop(self, 'bf_Allen_Bit_Flat_Distance')
+            elif self.bf_Bit_Type == 'bf_Bit_Torx':
+                col.prop(self, 'bf_Torx_Bit_Depth')
+                col.prop(self, 'bf_Torx_Size_Type')
             elif self.bf_Bit_Type == 'bf_Bit_Philips':
                 col.prop(self, 'bf_Phillips_Bit_Depth')
                 col.prop(self, 'bf_Philips_Bit_Dia')
@@ -292,6 +369,10 @@ class add_mesh_bolt(Operator, AddObjectHelper):
             if self.bf_Head_Type == 'bf_Head_Hex':
                 col.prop(self, 'bf_Hex_Head_Height')
                 col.prop(self, 'bf_Hex_Head_Flat_Distance')
+            elif self.bf_Head_Type == 'bf_Head_12Pnt':
+                col.prop(self, 'bf_12_Point_Head_Height')
+                col.prop(self, 'bf_12_Point_Head_Flat_Distance')
+                col.prop(self, 'bf_12_Point_Head_Flange_Dia')
             elif self.bf_Head_Type == 'bf_Head_Cap':
                 col.prop(self, 'bf_Cap_Head_Height')
                 col.prop(self, 'bf_Cap_Head_Dia')
@@ -311,8 +392,16 @@ class add_mesh_bolt(Operator, AddObjectHelper):
         # Nut
         if self.bf_Model_Type == 'bf_Model_Nut':
             col.prop(self, 'bf_Nut_Type')
-            col.prop(self, 'bf_Hex_Nut_Height')
-            col.prop(self, 'bf_Hex_Nut_Flat_Distance')
+            if self.bf_Nut_Type == "bf_Nut_12Pnt":
+                col.prop(self, 'bf_12_Point_Nut_Height')
+                col.prop(self, 'bf_12_Point_Nut_Flat_Distance')
+                col.prop(self, 'bf_12_Point_Nut_Flange_Dia')
+            else:
+                col.prop(self, 'bf_Hex_Nut_Height')
+                col.prop(self, 'bf_Hex_Nut_Flat_Distance')
+
+            
+            
         # Thread
         col.label(text='Thread')
         if self.bf_Model_Type == 'bf_Model_Bolt':
@@ -434,6 +523,8 @@ def BoltParameters():
     "bf_Phillips_Bit_Depth",
     "bf_Allen_Bit_Depth",
     "bf_Allen_Bit_Flat_Distance",
+    "bf_Torx_Bit_Depth",
+    "bf_Torx_Size_Type",
     "bf_Hex_Head_Height",
     "bf_Hex_Head_Flat_Distance",
     "bf_CounterSink_Head_Dia",

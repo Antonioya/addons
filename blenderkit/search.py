@@ -55,7 +55,7 @@ from bpy.types import (
 import requests, os, random
 import time
 import threading
-import tempfile
+import platform
 import json
 import bpy
 
@@ -133,19 +133,20 @@ last_clipboard = ''
 
 def check_clipboard():
     # clipboard monitoring to search assets from web
-    global last_clipboard
-    if bpy.context.window_manager.clipboard != last_clipboard:
-        last_clipboard = bpy.context.window_manager.clipboard
-        instr = 'asset_base_id:'
-        # first check if contains asset id, then asset type
-        if last_clipboard[:len(instr)] == instr:
-            atstr = 'asset_type:'
-            ati = last_clipboard.find(atstr)
-            # this only checks if the asset_type keyword is there but let's the keywords update function do the parsing.
-            if ati > -1:
-                search_props = utils.get_search_props()
-                search_props.search_keywords = last_clipboard
-                # don't run search after this - assigning to keywords runs the search_update function.
+    if platform.system() != 'Linux':
+        global last_clipboard
+        if bpy.context.window_manager.clipboard != last_clipboard:
+            last_clipboard = bpy.context.window_manager.clipboard
+            instr = 'asset_base_id:'
+            # first check if contains asset id, then asset type
+            if last_clipboard[:len(instr)] == instr:
+                atstr = 'asset_type:'
+                ati = last_clipboard.find(atstr)
+                # this only checks if the asset_type keyword is there but let's the keywords update function do the parsing.
+                if ati > -1:
+                    search_props = utils.get_search_props()
+                    search_props.search_keywords = last_clipboard
+                    # don't run search after this - assigning to keywords runs the search_update function.
 
 
 # @bpy.app.handlers.persistent
@@ -155,7 +156,7 @@ def timer_update():
     preferences = bpy.context.preferences.addons['blenderkit'].preferences
     if first_time:  # first time
         first_time = False
-        if preferences.show_on_start or preferences.first_run:
+        if preferences.show_on_start:
             # TODO here it should check if there are some results, and only open assetbar if this is the case, not search.
             # if bpy.context.scene.get('search results') is None:
             search()
@@ -166,7 +167,11 @@ def timer_update():
             ui.add_report(text='BlenderKit Tip: ' + random.choice(rtips), timeout=12, color=colors.GREEN)
         return 3.0
 
-    check_clipboard()
+    if preferences.first_run:
+        search()
+        preferences.first_run = False
+
+    #check_clipboard()
 
     global search_threads
     if len(search_threads) == 0:
@@ -764,7 +769,11 @@ class Searcher(threading.Thread):
         if query.get('query') is None and query.get('category_subtree') == None:
             # assumes no keywords and no category, thus an empty search that is triggered on start.
             # orders by last core file upload
-            requeststring += '+order:-last_upload'
+            if query.get('verification_status') == 'uploaded':
+                #for validators, sort uploaded from oldest
+                requeststring += '+order:created'
+            else:
+                requeststring += '+order:-last_upload'
         elif query.get('author_id') is not None and utils.profile_is_validator():
 
             requeststring += '+order:-created'

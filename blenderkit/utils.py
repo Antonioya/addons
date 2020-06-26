@@ -21,8 +21,10 @@ if "bpy" in locals():
     from importlib import reload
 
     paths = reload(paths)
+    rerequests = reload(rerequests)
+
 else:
-    from blenderkit import paths
+    from blenderkit import paths, rerequests
 
 import bpy
 from mathutils import Vector
@@ -544,6 +546,13 @@ def dict_to_params(inputs, parameters=None):
                 "value": value
             })
     return parameters
+
+
+def user_logged_in():
+    a = bpy.context.window_manager.get('bkit profile')
+    if a is not None:
+        return True
+    return False
 
 
 def profile_is_validator():

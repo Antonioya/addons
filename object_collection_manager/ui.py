@@ -18,13 +18,18 @@
 
 # Copyright 2011, Ryan Inch
 
+import bpy
+
 from bpy.types import (
     Operator,
     Panel,
     UIList,
 )
 
-from bpy.props import BoolProperty
+from bpy.props import (
+    BoolProperty,
+    StringProperty,
+)
 
 from .internals import (
     collection_tree,
@@ -32,21 +37,19 @@ from .internals import (
     expanded,
     get_max_lvl,
     layer_collections,
+    rto_history,
+    expand_history,
+    phantom_history,
+    copy_buffer,
+    swap_buffer,
     qcd_slots,
     update_collection_tree,
     update_property_group,
     generate_state,
+    get_move_selection,
+    get_move_active,
+    update_qcd_header,
 )
-
-from .operators import (
-    rto_history,
-    copy_buffer,
-    swap_buffer,
-    expand_history,
-    phantom_history,
-    )
-
-from . import qcd_operators
 
 
 preview_collections = {}
@@ -60,15 +63,32 @@ class CollectionManager(Operator):
 
     last_view_layer = ""
 
+    window_open = False
+
+    master_collection: StringProperty(
+        default='Scene Collection',
+        name="",
+        description="Scene Collection"
+        )
+
+    def __init__(self):
+        self.window_open = True
+
     def draw(self, context):
+        cls = CollectionManager
         layout = self.layout
         cm = context.scene.collection_manager
+        prefs = context.preferences.addons[__package__].preferences
         view_layer = context.view_layer
 
-        if view_layer.name != self.last_view_layer:
-            update_collection_tree(context)
-            self.last_view_layer = view_layer.name
+        if view_layer.name != cls.last_view_layer:
+            if prefs.enable_qcd:
+                bpy.app.timers.register(update_qcd_header)
 
+            update_collection_tree(context)
+            cls.last_view_layer = view_layer.name
+
+        # title and view layer
         title_row = layout.split(factor=0.5)
         main = title_row.row()
         view = title_row.row(align=True)
@@ -90,37 +110,91 @@ class CollectionManager(Operator):
         layout.row().separator()
         layout.row().separator()
 
-        filter_row = layout.row()
-        filter_row.alignment = 'RIGHT'
+        # buttons
+        button_row = layout.row()
 
-        filter_row.popover(panel="COLLECTIONMANAGER_PT_restriction_toggles", text="", icon='FILTER')
+        op_sec = button_row.row()
+        op_sec.alignment = 'LEFT'
 
-        toggle_row = layout.split(factor=0.3)
-        toggle_row.alignment = 'LEFT'
-
-        sec1 = toggle_row.row()
-        sec1.alignment = 'LEFT'
-        sec1.enabled = False
+        collapse_sec = op_sec.row()
+        collapse_sec.alignment = 'LEFT'
+        collapse_sec.enabled = False
 
         if len(expanded) > 0:
             text = "Collapse All Items"
         else:
             text = "Expand All Items"
 
-        sec1.operator("view3d.expand_all_items", text=text)
+        collapse_sec.operator("view3d.expand_all_items", text=text)
 
         for laycol in collection_tree:
             if laycol["has_children"]:
-                sec1.enabled = True
+                collapse_sec.enabled = True
                 break
 
-        if context.preferences.addons[__package__].preferences.enable_qcd:
-            renum = toggle_row.row()
-            renum.alignment = 'LEFT'
-            renum.operator("view3d.renumerate_qcd_slots")
+        if prefs.enable_qcd:
+            renum_sec = op_sec.row()
+            renum_sec.alignment = 'LEFT'
+            renum_sec.operator("view3d.renumerate_qcd_slots")
 
-        sec2 = toggle_row.row()
-        sec2.alignment = 'RIGHT'
+        # filter
+        filter_sec = button_row.row()
+        filter_sec.alignment = 'RIGHT'
+
+        filter_sec.popover(panel="COLLECTIONMANAGER_PT_display_options",
+                           text="", icon='FILTER')
+
+        mc_box = layout.box()
+        master_collection_row = mc_box.row(align=True)
+
+        # collection icon
+        c_icon = master_collection_row.row()
+        highlight = False
+        if (context.view_layer.active_layer_collection ==
+            context.view_layer.layer_collection):
+                highlight = True
+
+        prop = c_icon.operator("view3d.set_active_collection",
+                                              text='', icon='GROUP', depress=highlight)
+        prop.collection_index = -1
+        prop.collection_name = 'Master Collection'
+
+        master_collection_row.separator()
+
+        # name
+        name_row = master_collection_row.row()
+        name_row.prop(self, "master_collection", text='')
+        name_row.enabled = False
+
+        master_collection_row.separator()
+
+        # global rtos
+        global_rto_row = master_collection_row.row()
+        global_rto_row.alignment = 'RIGHT'
+
+        row_setcol = global_rto_row.row()
+        row_setcol.alignment = 'LEFT'
+        row_setcol.operator_context = 'INVOKE_DEFAULT'
+        selected_objects = get_move_selection()
+        active_object = get_move_active()
+        collection = context.view_layer.layer_collection.collection
+
+        icon = 'MESH_CUBE'
+
+        if selected_objects:
+            if active_object and active_object.name in collection.objects:
+                icon = 'SNAP_VOLUME'
+
+            elif not set(selected_objects).isdisjoint(collection.objects):
+                icon = 'STICKY_UVS_LOC'
+
+        else:
+            row_setcol.enabled = False
+
+        prop = row_setcol.operator("view3d.set_collection", text="",
+                                   icon=icon, emboss=False)
+        prop.collection_index = 0
+        prop.collection_name = 'Master Collection'
 
         copy_icon = 'COPYDOWN'
         swap_icon = 'ARROW_LEFTRIGHT'
@@ -143,7 +217,7 @@ class CollectionManager(Operator):
             if buffers[0] and buffers[1]:
                 icon = copy_swap_icon
 
-            sec2.operator("view3d.un_exclude_all_collections", text="", icon=icon, depress=depress)
+            global_rto_row.operator("view3d.un_exclude_all_collections", text="", icon=icon, depress=depress)
 
         if cm.show_selectable:
             select_all_history = rto_history["select_all"].get(view_layer.name, [])
@@ -151,18 +225,18 @@ class CollectionManager(Operator):
             icon = 'RESTRICT_SELECT_OFF'
             buffers = [False, False]
 
-            if copy_buffer["RTO"] == "collection.hide_select":
+            if copy_buffer["RTO"] == "select":
                 icon = copy_icon
                 buffers[0] = True
 
-            if swap_buffer["A"]["RTO"] == "collection.hide_select":
+            if swap_buffer["A"]["RTO"] == "select":
                 icon = swap_icon
                 buffers[1] = True
 
             if buffers[0] and buffers[1]:
                 icon = copy_swap_icon
 
-            sec2.operator("view3d.un_restrict_select_all_collections", text="", icon=icon, depress=depress)
+            global_rto_row.operator("view3d.un_restrict_select_all_collections", text="", icon=icon, depress=depress)
 
         if cm.show_hide_viewport:
             hide_all_history = rto_history["hide_all"].get(view_layer.name, [])
@@ -170,18 +244,18 @@ class CollectionManager(Operator):
             icon = 'HIDE_OFF'
             buffers = [False, False]
 
-            if copy_buffer["RTO"] == "hide_viewport":
+            if copy_buffer["RTO"] == "hide":
                 icon = copy_icon
                 buffers[0] = True
 
-            if swap_buffer["A"]["RTO"] == "hide_viewport":
+            if swap_buffer["A"]["RTO"] == "hide":
                 icon = swap_icon
                 buffers[1] = True
 
             if buffers[0] and buffers[1]:
                 icon = copy_swap_icon
 
-            sec2.operator("view3d.un_hide_all_collections", text="", icon=icon, depress=depress)
+            global_rto_row.operator("view3d.un_hide_all_collections", text="", icon=icon, depress=depress)
 
         if cm.show_disable_viewport:
             disable_all_history = rto_history["disable_all"].get(view_layer.name, [])
@@ -189,18 +263,18 @@ class CollectionManager(Operator):
             icon = 'RESTRICT_VIEW_OFF'
             buffers = [False, False]
 
-            if copy_buffer["RTO"] == "collection.hide_viewport":
+            if copy_buffer["RTO"] == "disable":
                 icon = copy_icon
                 buffers[0] = True
 
-            if swap_buffer["A"]["RTO"] == "collection.hide_viewport":
+            if swap_buffer["A"]["RTO"] == "disable":
                 icon = swap_icon
                 buffers[1] = True
 
             if buffers[0] and buffers[1]:
                 icon = copy_swap_icon
 
-            sec2.operator("view3d.un_disable_viewport_all_collections", text="", icon=icon, depress=depress)
+            global_rto_row.operator("view3d.un_disable_viewport_all_collections", text="", icon=icon, depress=depress)
 
         if cm.show_render:
             render_all_history = rto_history["render_all"].get(view_layer.name, [])
@@ -208,25 +282,27 @@ class CollectionManager(Operator):
             icon = 'RESTRICT_RENDER_OFF'
             buffers = [False, False]
 
-            if copy_buffer["RTO"] == "collection.hide_render":
+            if copy_buffer["RTO"] == "render":
                 icon = copy_icon
                 buffers[0] = True
 
-            if swap_buffer["A"]["RTO"] == "collection.hide_render":
+            if swap_buffer["A"]["RTO"] == "render":
                 icon = swap_icon
                 buffers[1] = True
 
             if buffers[0] and buffers[1]:
                 icon = copy_swap_icon
 
-            sec2.operator("view3d.un_disable_render_all_collections", text="", icon=icon, depress=depress)
+            global_rto_row.operator("view3d.un_disable_render_all_collections", text="", icon=icon, depress=depress)
 
+        # treeview
         layout.row().template_list("CM_UL_items", "",
                                    cm, "cm_list_collection",
                                    cm, "cm_list_index",
                                    rows=15,
                                    sort_lock=True)
 
+        # add collections
         addcollec_row = layout.row()
         addcollec_row.operator("view3d.add_collection", text="Add Collection",
                                icon='COLLECTION_NEW').child = False
@@ -234,16 +310,19 @@ class CollectionManager(Operator):
         addcollec_row.operator("view3d.add_collection", text="Add SubCollection",
                                icon='COLLECTION_NEW').child = True
 
+        # phantom mode
         phantom_row = layout.row()
         toggle_text = "Disable " if cm.in_phantom_mode else "Enable "
         phantom_row.operator("view3d.toggle_phantom_mode", text=toggle_text+"Phantom Mode")
 
         if cm.in_phantom_mode:
             view.enabled = False
-            addcollec_row.enabled = False
+            if prefs.enable_qcd:
+                renum_sec.enabled = False
 
-            if context.preferences.addons[__package__].preferences.enable_qcd:
-                renum.enabled = False
+            c_icon.enabled = False
+            row_setcol.enabled = False
+            addcollec_row.enabled = False
 
 
     def execute(self, context):
@@ -256,16 +335,11 @@ class CollectionManager(Operator):
 
         self.view_layer = view_layer.name
 
-        # sync selection in ui list with active layer collection
-        try:
-            active_laycol_name = view_layer.active_layer_collection.name
-            active_laycol_row_index = layer_collections[active_laycol_name]["row_index"]
-            cm.cm_list_index = active_laycol_row_index
-
-        except KeyError: # Master Collection isn't supported
+        # make sure list index is valid
+        if cm.cm_list_index >= len(cm.cm_list_collection):
             cm.cm_list_index = -1
 
-        # check if history/buffer state still correct
+        # check if expanded & history/buffer state still correct
         if collection_state:
             new_state = generate_state()
 
@@ -277,6 +351,16 @@ class CollectionManager(Operator):
                 swap_buffer["A"]["values"].clear()
                 swap_buffer["B"]["RTO"] = ""
                 swap_buffer["B"]["values"].clear()
+
+                for name in list(expanded):
+                    laycol = layer_collections.get(name)
+                    if not laycol or not laycol["has_children"]:
+                        expanded.remove(name)
+
+                for name in list(expand_history["history"]):
+                    laycol = layer_collections.get(name)
+                    if not laycol or not laycol["has_children"]:
+                        expand_history["history"].remove(name)
 
                 for rto, history in rto_history.items():
                     if view_layer.name in history:
@@ -311,11 +395,16 @@ class CollectionManager(Operator):
         # handle window sizing
         max_width = 960
         min_width = 456
+        row_indent_width = 15
         width_step = 21
+        qcd_width = 30
         scrollbar_width = 21
         lvl = get_max_lvl()
 
-        width = min_width + (width_step * lvl)
+        width = min_width + row_indent_width + (width_step * lvl)
+
+        if bpy.context.preferences.addons[__package__].preferences.enable_qcd:
+            width += qcd_width
 
         if len(layer_collections) > 14:
             width += scrollbar_width
@@ -327,6 +416,10 @@ class CollectionManager(Operator):
 
     def __del__(self):
         global collection_state
+
+        if not self.window_open:
+            # prevent destructor execution when changing templates
+            return
 
         collection_state.clear()
         collection_state.update(generate_state())
@@ -350,13 +443,27 @@ class CM_UL_items(UIList):
         self.use_filter_show = True
 
         cm = context.scene.collection_manager
+        prefs = context.preferences.addons[__package__].preferences
         view_layer = context.view_layer
         laycol = layer_collections[item.name]
         collection = laycol["ptr"].collection
+        selected_objects = get_move_selection()
+        active_object = get_move_active()
 
-        split = layout.split(factor=0.96)
-        row = split.row(align=True)
-        row.alignment = 'LEFT'
+        column = layout.column(align=True)
+
+        main_row = column.row()
+
+        s1 = main_row.row(align=True)
+        s1.alignment = 'LEFT'
+
+        s2 = main_row.row(align=True)
+        s2.alignment = 'RIGHT'
+
+        row = s1
+
+        # allow room to select the row from the beginning
+        row.separator()
 
         # indent child items
         if laycol["lvl"] > 0:
@@ -368,15 +475,19 @@ class CM_UL_items(UIList):
             if laycol["expanded"]:
                 highlight = True if expand_history["target"] == item.name else False
 
-                prop = row.operator("view3d.expand_sublevel", text="", icon='DISCLOSURE_TRI_DOWN',
+                prop = row.operator("view3d.expand_sublevel", text="",
+                                    icon='DISCLOSURE_TRI_DOWN',
                                     emboss=highlight, depress=highlight)
                 prop.expand = False
                 prop.name = item.name
                 prop.index = index
 
             else:
+                highlight = True if expand_history["target"] == item.name else False
+
                 prop = row.operator("view3d.expand_sublevel", text="",
-                                    icon='DISCLOSURE_TRI_RIGHT', emboss=False)
+                                    icon='DISCLOSURE_TRI_RIGHT',
+                                    emboss=highlight, depress=highlight)
                 prop.expand = True
                 prop.name = item.name
                 prop.index = index
@@ -385,38 +496,54 @@ class CM_UL_items(UIList):
             row.label(icon='BLANK1')
 
 
-        row.label(icon='GROUP')
+        # collection icon
+        c_icon = row.row()
+        highlight = False
+        if (context.view_layer.active_layer_collection == laycol["ptr"]):
+                highlight = True
 
-        if context.preferences.addons[__package__].preferences.enable_qcd:
+        prop = c_icon.operator("view3d.set_active_collection", text='', icon='GROUP',
+                                              emboss=highlight, depress=highlight)
+
+        prop.collection_index = laycol["row_index"]
+        prop.collection_name = item.name
+
+        if prefs.enable_qcd:
             QCD = row.row()
             QCD.scale_x = 0.4
             QCD.prop(item, "qcd_slot_idx", text="")
 
-        name_row = row.row()
+        c_name = row.row()
 
         #if rename[0] and index == cm.cm_list_index:
-            #name_row.activate_init = True
+            #c_name.activate_init = True
             #rename[0] = False
 
-        name_row.prop(item, "name", text="", expand=True)
+        c_name.prop(item, "name", text="", expand=True)
 
         # used as a separator (actual separator not wide enough)
         row.label()
 
+        row = s2 if cm.align_local_ops else s1
+
         # add set_collection op
-        row_setcol = row.row()
-        row_setcol.operator_context = 'INVOKE_DEFAULT'
+        set_obj_col = row.row()
+        set_obj_col.operator_context = 'INVOKE_DEFAULT'
 
         icon = 'MESH_CUBE'
 
-        if len(context.selected_objects) > 0 and context.active_object:
-            if context.active_object.name in collection.objects:
+        if selected_objects:
+            if active_object and active_object.name in collection.objects:
                 icon = 'SNAP_VOLUME'
+
+            elif not set(selected_objects).isdisjoint(collection.objects):
+                icon = 'STICKY_UVS_LOC'
+
         else:
-            row_setcol.enabled = False
+            set_obj_col.enabled = False
 
 
-        prop = row_setcol.operator("view3d.set_collection", text="",
+        prop = set_obj_col.operator("view3d.set_collection", text="",
                                    icon=icon, emboss=False)
         prop.collection_index = laycol["id"]
         prop.collection_name = item.name
@@ -481,17 +608,38 @@ class CM_UL_items(UIList):
                          emboss=highlight, depress=highlight).name = item.name
 
 
-        rm_op = split.row()
-        rm_op.alignment = 'RIGHT'
+
+        row = s2
+
+        row.separator()
+        row.separator()
+
+        rm_op = row.row()
         rm_op.operator("view3d.remove_collection", text="", icon='X',
                        emboss=False).collection_name = item.name
 
+
+        if len(data.cm_list_collection) > index + 1:
+            line_separator = column.row(align=True)
+            line_separator.ui_units_y = 0.01
+            line_separator.scale_y = 0.1
+            line_separator.enabled = False
+
+            line_separator.separator()
+            line_separator.label(icon='BLANK1')
+
+            for _ in range(laycol["lvl"] + 1):
+                line_separator.label(icon='BLANK1')
+
+            line_separator.prop(cm, "ui_separator")
+
         if cm.in_phantom_mode:
-            name_row.enabled = False
-            row_setcol.enabled = False
+            c_icon.enabled = False
+            c_name.enabled = False
+            set_obj_col.enabled = False
             rm_op.enabled = False
 
-            if context.preferences.addons[__package__].preferences.enable_qcd:
+            if prefs.enable_qcd:
                 QCD.enabled = False
 
 
@@ -551,23 +699,42 @@ class CM_UL_items(UIList):
         pass
 
 
-class CMRestrictionTogglesPanel(Panel):
-    bl_label = "Restriction Toggles"
-    bl_idname = "COLLECTIONMANAGER_PT_restriction_toggles"
+class CMDisplayOptionsPanel(Panel):
+    bl_label = "Display Options"
+    bl_idname = "COLLECTIONMANAGER_PT_display_options"
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'HEADER'
+    bl_region_type = 'UI'
+    bl_category = "Collection Manager"
 
     def draw(self, context):
         cm = context.scene.collection_manager
 
         layout = self.layout
-        row = layout.row()
 
+        panel_header = layout.row()
+        panel_header.alignment = 'CENTER'
+        panel_header.label(text="Display Options")
+
+        layout.separator()
+
+        section_header = layout.row()
+        section_header.alignment = 'LEFT'
+        section_header.label(text="Restriction Toggles")
+
+        row = layout.row()
         row.prop(cm, "show_exclude", icon='CHECKBOX_HLT', icon_only=True)
         row.prop(cm, "show_selectable", icon='RESTRICT_SELECT_OFF', icon_only=True)
         row.prop(cm, "show_hide_viewport", icon='HIDE_OFF', icon_only=True)
         row.prop(cm, "show_disable_viewport", icon='RESTRICT_VIEW_OFF', icon_only=True)
         row.prop(cm, "show_render", icon='RESTRICT_RENDER_OFF', icon_only=True)
+
+        layout.separator()
+
+        section_header = layout.row()
+        section_header.label(text="Layout")
+
+        row = layout.row()
+        row.prop(cm, "align_local_ops")
 
 
 def view3d_header_qcd_slots(self, context):
@@ -588,8 +755,8 @@ def view3d_header_qcd_slots(self, context):
         if qcd_slot_name:
             qcd_laycol = layer_collections[qcd_slot_name]["ptr"]
             collection_objects = qcd_laycol.collection.objects
-            selected_objects = qcd_operators.get_move_selection()
-            active_object = qcd_operators.get_move_active()
+            selected_objects = get_move_selection()
+            active_object = get_move_active()
 
             icon_value = 0
 
@@ -629,6 +796,12 @@ def view3d_header_qcd_slots(self, context):
             row.scale_y = 0.5
 
         idx += 1
+
+
+def view_layer_update(self, context):
+    if context.view_layer.name != CollectionManager.last_view_layer:
+        bpy.app.timers.register(update_qcd_header)
+        CollectionManager.last_view_layer = context.view_layer.name
 
 
 def get_active_icon(context, qcd_laycol):
@@ -689,18 +862,6 @@ def update_icon(base, icon, theme_color):
         colored_icon.append(a)
 
     icon.icon_pixels_float = colored_icon
-
-
-def update_selection(self, context):
-    cm = context.scene.collection_manager
-
-    if cm.cm_list_index == -1:
-        return
-
-    selected_item = cm.cm_list_collection[cm.cm_list_index]
-    layer_collection = layer_collections[selected_item.name]["ptr"]
-
-    context.view_layer.active_layer_collection = layer_collection
 
 
 def filter_items_by_name_insensitive(pattern, bitflag, items, propname="name", flags=None, reverse=False):

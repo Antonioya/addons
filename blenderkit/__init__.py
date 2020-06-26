@@ -17,12 +17,12 @@
 # ##### END GPL LICENSE BLOCK #####
 
 bl_info = {
-    "name": "BlenderKit Asset Library",
+    "name": "BlenderKit Online Asset Library",
     "author": "Vilem Duha, Petr Dlouhy",
     "version": (1, 0, 30),
     "blender": (2, 82, 0),
     "location": "View3D > Properties > BlenderKit",
-    "description": "Online BlenderKit library (materials, models, brushes and more)",
+    "description": "Online BlenderKit library (materials, models, brushes and more). Connects to the internet.",
     "warning": "",
     "doc_url": "{BLENDER_MANUAL_URL}/addons/add_mesh/blenderkit.html",
     "category": "3D View",
@@ -57,6 +57,7 @@ import math
 import time
 # import logging
 import bpy
+import pathlib
 
 from bpy.app.handlers import persistent
 import bpy.utils.previews
@@ -122,8 +123,8 @@ model_styles = (
     ('PAINTERLY', 'Painterly', 'hand painted with visible strokes, mostly for games'),
     ('LOWPOLY', 'Lowpoly', "Lowpoly art -don't mix up with polycount!"),
     ('ANIME', 'Anime', 'Anime style'),
-    ('2D_VECTOR', '2d Vector', '2d vector'),
-    ('3D_GRAPHICS', '3d Graphics', '3d graphics'),
+    ('2D_VECTOR', '2D Vector', '2D vector'),
+    ('3D_GRAPHICS', '3D Graphics', '3D graphics'),
     ('OTHER', 'Other', 'Other style'),
 )
 search_model_styles = (
@@ -131,8 +132,8 @@ search_model_styles = (
     ('PAINTERLY', 'Painterly', 'hand painted with visible strokes, mostly for games'),
     ('LOWPOLY', 'Lowpoly', "Lowpoly art -don't mix up with polycount!"),
     ('ANIME', 'Anime', 'Anime style'),
-    ('2D_VECTOR', '2d Vector', '2d vector'),
-    ('3D_GRAPHICS', '3d Graphics', '3d graphics'),
+    ('2D_VECTOR', '2D Vector', '2D vector'),
+    ('3D_GRAPHICS', '3D Graphics', '3D graphics'),
     ('OTHER', 'Other', 'Other Style'),
     ('ANY', 'Any', 'Any Style'),
 )
@@ -155,7 +156,7 @@ engines = (
     ('UNREAL', 'Unreal', 'Unreal engine'),
     ('UNITY', 'Unity', 'Unity engine'),
     ('GODOT', 'Godot', 'Godot engine'),
-    ('3D-PRINT', '3d printer', 'object can be 3d printed'),
+    ('3D-PRINT', '3D printer', 'object can be 3D printed'),
     ('OTHER', 'Other', 'any other engine'),
     ('NONE', 'None', 'no more engine block'),
 )
@@ -264,7 +265,7 @@ def asset_type_callback(self, context):
         items = (
             ('MODEL', 'Upload Model', 'Upload a model to BlenderKit', 'OBJECT_DATAMODE', 0),
             # ('SCENE', 'SCENE', 'Browse scenes', 'SCENE_DATA', 1),
-            ('MATERIAL', 'Uplaod Material', 'Upload a material to BlenderKit', 'MATERIAL', 2),
+            ('MATERIAL', 'Upload Material', 'Upload a material to BlenderKit', 'MATERIAL', 2),
             # ('TEXTURE', 'Texture', 'Browse textures', 'TEXTURE', 3),
             ('BRUSH', 'Upload Brush', 'Upload a brush to BlenderKit', 'BRUSH_DATA', 3)
         )
@@ -1391,6 +1392,27 @@ class BlenderKitSceneSearchProps(PropertyGroup, BlenderKitCommonSearchProps):
         update=search.search_update
     )
 
+def fix_subdir(self, context):
+    '''Fixes project subdicrectory settings if people input invalid path.'''
+
+    # pp = pathlib.PurePath(self.project_subdir)
+    pp = self.project_subdir[:]
+    pp = pp.replace('\\','')
+    pp = pp.replace('/','')
+    pp = pp.replace(':','')
+    pp = '//' + pp
+    if self.project_subdir != pp:
+        self.project_subdir = pp
+
+        title = "Fixed to relative path"
+        message = "This path should be always realative.\n" \
+                  " It's a directory BlenderKit creates where your .blend is \n " \
+                  "and uses it for storing assets."
+
+        def draw_message(self, context):
+            ui_panels.label_multiline(self.layout, text=message, icon='NONE', width=400)
+
+        bpy.context.window_manager.popup_menu(draw_message, title=title, icon='INFO')
 
 class BlenderKitAddonPreferences(AddonPreferences):
     # this must match the addon name, use '__package__'
@@ -1469,8 +1491,9 @@ class BlenderKitAddonPreferences(AddonPreferences):
     project_subdir: StringProperty(
         name="Project Assets Subdirectory",
         description="where data will be stored for individual projects",
-        subtype='DIR_PATH',
+        # subtype='DIR_PATH',
         default="//assets",
+        update = fix_subdir
     )
 
     directory_behaviour: EnumProperty(
@@ -1502,7 +1525,7 @@ class BlenderKitAddonPreferences(AddonPreferences):
         items=(
             ('BOTH', 'Both Types',
              ''),
-            ('UNIFIED', 'Unified 3d View Panel',
+            ('UNIFIED', 'Unified 3D View Panel',
              ""),
             ('LOCAL', 'Relative to Data',
              '')
@@ -1513,7 +1536,7 @@ class BlenderKitAddonPreferences(AddonPreferences):
     )
 
     max_assetbar_rows: IntProperty(name="Max Assetbar Rows",
-                                   description="max rows of assetbar in the 3d view",
+                                   description="max rows of assetbar in the 3D view",
                                    default=1,
                                    min=0,
                                    max=20)

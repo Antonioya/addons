@@ -22,11 +22,13 @@ bl_info = {
     "name": "Collection Manager",
     "description": "Manage collections and their objects",
     "author": "Ryan Inch",
-    "version": (2,4,12),
+    "version": (2, 9, 0),
     "blender": (2, 80, 0),
     "location": "View3D - Object Mode (Shortcut - M)",
     "warning": '',  # used for warning icon and text in addons panel
     "doc_url": "{BLENDER_MANUAL_URL}/addons/interface/collection_manager.html",
+    "wiki_url": "https://docs.blender.org/manual/en/dev/addons/interface/collection_manager.html",
+    "tracker_url": "https://blenderartists.org/t/release-addon-collection-manager-feedback/1186198/",
     "category": "Interface",
 }
 
@@ -35,6 +37,7 @@ if "bpy" in locals():
     import importlib
 
     importlib.reload(internals)
+    importlib.reload(operator_utils)
     importlib.reload(operators)
     importlib.reload(qcd_move_widget)
     importlib.reload(qcd_operators)
@@ -44,6 +47,7 @@ if "bpy" in locals():
 
 else:
     from . import internals
+    from . import operator_utils
     from . import operators
     from . import qcd_move_widget
     from . import qcd_operators
@@ -52,6 +56,7 @@ else:
     from . import preferences
 
 import bpy
+from bpy.app.handlers import persistent
 from bpy.types import PropertyGroup
 from bpy.props import (
     CollectionProperty,
@@ -65,17 +70,22 @@ from bpy.props import (
 
 class CollectionManagerProperties(PropertyGroup):
     cm_list_collection: CollectionProperty(type=internals.CMListCollection)
-    cm_list_index: IntProperty(update=ui.update_selection)
+    cm_list_index: IntProperty()
 
-    show_exclude: BoolProperty(default=True, name="Exclude from View Layer")
-    show_selectable: BoolProperty(default=True, name="Selectable")
-    show_hide_viewport: BoolProperty(default=True, name="Hide in Viewport")
-    show_disable_viewport: BoolProperty(default=False, name="Disable in Viewports")
-    show_render: BoolProperty(default=False, name="Disable in Renders")
+    show_exclude: BoolProperty(default=True, name="[EC] Exclude from View Layer")
+    show_selectable: BoolProperty(default=True, name="[SS] Disable Selection")
+    show_hide_viewport: BoolProperty(default=True, name="[VV] Hide in Viewport")
+    show_disable_viewport: BoolProperty(default=False, name="[DV] Disable in Viewports")
+    show_render: BoolProperty(default=False, name="[RR] Disable in Renders")
+
+    align_local_ops: BoolProperty(default=False, name="Align Local Options",
+                                  description="Align local options in a column to the right")
 
     in_phantom_mode: BoolProperty(default=False)
 
     update_header: CollectionProperty(type=internals.CMListCollection)
+
+    ui_separator: StringProperty(name="", default="")
 
     qcd_slots_blend_data: StringProperty()
 
@@ -85,6 +95,7 @@ addon_keymaps = []
 classes = (
     internals.CMListCollection,
     internals.CMSendReport,
+    operators.SetActiveCollection,
     operators.ExpandAllOperator,
     operators.ExpandSublevelOperator,
     operators.CMExcludeOperator,
@@ -104,11 +115,23 @@ classes = (
     preferences.CMPreferences,
     ui.CM_UL_items,
     ui.CollectionManager,
-    ui.CMRestrictionTogglesPanel,
+    ui.CMDisplayOptionsPanel,
     CollectionManagerProperties,
     )
 
+@persistent
+def depsgraph_update_post_handler(dummy):
+    if internals.move_triggered:
+        internals.move_triggered = False
+        return
 
+    internals.move_selection.clear()
+    internals.move_active = None
+
+@persistent
+def undo_redo_post_handler(dummy):
+    internals.move_selection.clear()
+    internals.move_active = None
 
 def register():
     for cls in classes:
@@ -122,6 +145,10 @@ def register():
     kmi = km.keymap_items.new('view3d.collection_manager', 'M', 'PRESS')
     addon_keymaps.append((km, kmi))
 
+    bpy.app.handlers.depsgraph_update_post.append(depsgraph_update_post_handler)
+    bpy.app.handlers.undo_post.append(undo_redo_post_handler)
+    bpy.app.handlers.redo_post.append(undo_redo_post_handler)
+
     if bpy.context.preferences.addons[__package__].preferences.enable_qcd:
         qcd_init.register_qcd()
 
@@ -131,6 +158,10 @@ def unregister():
 
     for cls in classes:
         bpy.utils.unregister_class(cls)
+
+    bpy.app.handlers.depsgraph_update_post.remove(depsgraph_update_post_handler)
+    bpy.app.handlers.undo_post.remove(undo_redo_post_handler)
+    bpy.app.handlers.redo_post.remove(undo_redo_post_handler)
 
     del bpy.types.Scene.collection_manager
 
