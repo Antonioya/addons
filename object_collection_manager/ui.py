@@ -58,6 +58,7 @@ last_icon_theme_text_sel = None
 
 
 class CollectionManager(Operator):
+    '''Manage and control collections, with advanced features, in a popup UI'''
     bl_label = "Collection Manager"
     bl_idname = "view3d.collection_manager"
 
@@ -702,9 +703,12 @@ class CM_UL_items(UIList):
 class CMDisplayOptionsPanel(Panel):
     bl_label = "Display Options"
     bl_idname = "COLLECTIONMANAGER_PT_display_options"
+
+    # set space type to VIEW_3D and region type to HEADER
+    # because we only need it in a popover in the 3D View
+    # and don't want it always present in the UI/N-Panel
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "Collection Manager"
+    bl_region_type = 'HEADER'
 
     def draw(self, context):
         cm = context.scene.collection_manager
