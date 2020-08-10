@@ -2239,6 +2239,8 @@ def create_gpencil(context, scale):
     bpy.data.collections[active_collection].objects.link(ob_gp)
     # Scale
     ob_gp.scale = (scale, scale, scale)
+    # Lights off
+    ob_gp.use_grease_pencil_lights = False
 
     # Generate strokes for each curve
     for ob_cu in context['curves']:
