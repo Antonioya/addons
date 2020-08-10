@@ -210,46 +210,63 @@ class QCDSlots():
                 if self.length() > 20:
                     break
 
-    def renumerate(self, *, depth_first=False, beginning=False):
+    def renumerate(self, *, beginning=False, depth_first=False, constrain=False):
         if beginning:
             self.clear_slots()
             self.overrides.clear()
 
         starting_laycol_name = self.get_name("1")
-        if starting_laycol_name:
-            laycol = layer_collections[starting_laycol_name]["parent"]["ptr"]
 
-        else:
+        if not starting_laycol_name:
             laycol = bpy.context.view_layer.layer_collection
             starting_laycol_name = laycol.children[0].name
 
         self.clear_slots()
         self.overrides.clear()
 
-        laycol_iter_list = []
-        for laycol in laycol.children:
-            if laycol.name == starting_laycol_name or laycol_iter_list:
-                laycol_iter_list.append(laycol)
+        if depth_first:
+            parent = layer_collections[starting_laycol_name]["parent"]
+            x = 1
 
-        while laycol_iter_list:
-            layer_collection = laycol_iter_list.pop(0)
+            for laycol in layer_collections.values():
+                if self.length() == 0 and starting_laycol_name != laycol["name"]:
+                    continue
 
-            for x in range(20):
-                if self.contains(name=layer_collection.name):
+                if constrain:
+                    if self.length():
+                        if laycol["parent"]["name"] == parent["name"]:
+                            break
+
+                self.add_slot(f"{x}", laycol["name"])
+
+                x += 1
+
+                if self.length() > 20:
                     break
 
-                if not self.contains(idx=f"{x+1}"):
-                        self.add_slot(f"{x+1}", layer_collection.name)
+        else:
+            laycol = layer_collections[starting_laycol_name]["parent"]["ptr"]
 
+            laycol_iter_list = []
+            for laycol in laycol.children:
+                if laycol.name == starting_laycol_name:
+                    laycol_iter_list.append(laycol)
 
-            if depth_first:
-                laycol_iter_list[0:0] = list(layer_collection.children)
+                elif not constrain and laycol_iter_list:
+                    laycol_iter_list.append(laycol)
 
-            else:
+            x = 1
+            while laycol_iter_list:
+                layer_collection = laycol_iter_list.pop(0)
+
+                self.add_slot(f"{x}", layer_collection.name)
+
                 laycol_iter_list.extend(list(layer_collection.children))
 
-            if self.length() > 20:
-                break
+                x += 1
+
+                if self.length() > 20:
+                    break
 
 
         for laycol in layer_collections.values():
@@ -580,13 +597,21 @@ def generate_state():
     return state
 
 
-def get_move_selection():
+def get_move_selection(*, names_only=False):
     global move_selection
 
     if not move_selection:
-        move_selection = [obj.name for obj in bpy.context.selected_objects]
+        move_selection = {obj.name for obj in bpy.context.selected_objects}
 
-    return [bpy.data.objects[name] for name in move_selection]
+    if names_only:
+        return move_selection
+
+    else:
+        if len(move_selection) <= 5:
+            return {bpy.data.objects[name] for name in move_selection}
+
+        else:
+            return {obj for obj in bpy.data.objects if obj.name in move_selection}
 
 
 def get_move_active():
@@ -596,7 +621,7 @@ def get_move_active():
     if not move_active:
         move_active = getattr(bpy.context.view_layer.objects.active, "name", None)
 
-    if move_active not in [obj.name for obj in get_move_selection()]:
+    if move_active not in get_move_selection(names_only=True):
         move_active = None
 
     return bpy.data.objects[move_active] if move_active else None

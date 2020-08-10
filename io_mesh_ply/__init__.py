@@ -20,10 +20,10 @@
 
 bl_info = {
     "name": "Stanford PLY format",
-    "author": "Bruce Merry, Campbell Barton",
-    "version": (1, 1, 0),
-    "blender": (2, 82, 0),
-    "location": "File > Import-Export",
+    "author": "Bruce Merry, Campbell Barton", "Bastien Montagne"
+    "version": (2, 1, 0),
+    "blender": (2, 90, 0),
+    "location": "File > Import/Export",
     "description": "Import-Export PLY mesh data with UVs and vertex colors",
     "doc_url": "{BLENDER_MANUAL_URL}/addons/import_export/mesh_ply.html",
     "support": 'OFFICIAL',
@@ -84,6 +84,8 @@ class ImportPLY(bpy.types.Operator, ImportHelper):
         import os
         from . import import_ply
 
+        context.window.cursor_set('WAIT')
+
         paths = [
             os.path.join(self.directory, name.name)
             for name in self.files
@@ -94,6 +96,8 @@ class ImportPLY(bpy.types.Operator, ImportHelper):
 
         for path in paths:
             import_ply.load(self, context, path)
+
+        context.window.cursor_set('DEFAULT')
 
         return {'FINISHED'}
 
@@ -107,6 +111,10 @@ class ExportPLY(bpy.types.Operator, ExportHelper):
     filename_ext = ".ply"
     filter_glob: StringProperty(default="*.ply", options={'HIDDEN'})
 
+    use_ascii: BoolProperty(
+        name="ASCII",
+        description="Export using ASCII file format, otherwise use binary",
+    )
     use_selection: BoolProperty(
         name="Selection Only",
         description="Export selected objects only",
@@ -146,6 +154,8 @@ class ExportPLY(bpy.types.Operator, ExportHelper):
         from mathutils import Matrix
         from . import export_ply
 
+        context.window.cursor_set('WAIT')
+
         keywords = self.as_keywords(
             ignore=(
                 "axis_forward",
@@ -161,13 +171,22 @@ class ExportPLY(bpy.types.Operator, ExportHelper):
         ).to_4x4() @ Matrix.Scale(self.global_scale, 4)
         keywords["global_matrix"] = global_matrix
 
-        filepath = self.filepath
-        filepath = bpy.path.ensure_ext(filepath, self.filename_ext)
+        export_ply.save(context, **keywords)
 
-        return export_ply.save(self, context, **keywords)
+        context.window.cursor_set('DEFAULT')
+
+        return {'FINISHED'}
 
     def draw(self, context):
-        pass
+        layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
+        sfile = context.space_data
+        operator = sfile.active_operator
+
+        col = layout.column(heading="Format")
+        col.prop(operator, "use_ascii")
 
 
 class PLY_PT_export_include(bpy.types.Panel):
