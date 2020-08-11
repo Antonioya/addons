@@ -2187,21 +2187,32 @@ def parseAbstractNode(node, context):
 
     # layers
     if name == 'g':
-        layer = None
-        if node.getAttribute('inkscape:label'):
-            layer = node.getAttribute('inkscape:label')
-        # Illustrator use id for name
-        elif node.getAttribute('id') and context['inkscape'] is False:
-            layer = node.getAttribute('id')
+        skip = False
+        for child in node.childNodes:
+            if child.nodeType == xml.dom.Node.TEXT_NODE:
+                continue
+            if child.nodeType == xml.dom.Node.ELEMENT_NODE:
+                if child.tagName.lower() == 'g':
+                    skip = True
 
-        # Create a collection by SVG layer
-        if layer and context['use_collections']:
-            context['layer'] = layer
-            if layer != context['prev_layer']:
-                context['prev_layer'] = layer
-                collection = bpy.data.collections.new(name=layer)
-                context['layer'] = collection.name
-                context['collection'].children.link(collection)
+                break
+
+        if skip is False:
+            layer = None
+            if node.getAttribute('inkscape:label'):
+                layer = node.getAttribute('inkscape:label')
+            # Illustrator use id for name
+            elif node.getAttribute('id') and context['inkscape'] is False:
+                layer = node.getAttribute('id')
+
+            # Create a collection by SVG layer
+            if layer and context['use_collections']:
+                context['layer'] = layer
+                if layer != context['prev_layer']:
+                    context['prev_layer'] = layer
+                    collection = bpy.data.collections.new(name=layer)
+                    context['layer'] = collection.name
+                    context['collection'].children.link(collection)
 
     if geomClass is not None:
         ob = geomClass(node, context)
