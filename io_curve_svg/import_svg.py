@@ -475,12 +475,12 @@ def SVGParseStyles(node, context):
     if fill_opacity and fill_opacity != 'none':
         mat = styles['fill']
         if mat:
-            mat.diffuse_color[3] = fill_opacity
+            mat.diffuse_color[3] = float(fill_opacity)
 
     if stroke_opacity and stroke_opacity != 'none':
         mat = styles['stroke']
         if mat:
-            mat.diffuse_color[3] = stroke_opacity
+            mat.diffuse_color[3] = float(stroke_opacity)
 
     if styles['useFill'] is None:
         fill = node.getAttribute('fill')
