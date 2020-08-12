@@ -1328,9 +1328,8 @@ class SVGGeometryPATH(SVGGeometry):
         else:
             cu.dimensions = '3D'
 
-        if self._styles['useStroke']:
-            if self._styles['stroke'] != None and self._styles['stroke'] != 'none':
-                cu.materials.append(self._styles['stroke'])
+        if self._styles['useStroke'] and self._styles['stroke'] and self._styles['stroke'] != 'none':
+            cu.materials.append(self._styles['stroke'])
 
         for spline in self._splines:
             act_spline = None
@@ -1361,7 +1360,7 @@ class SVGGeometryPATH(SVGGeometry):
                 bezt = act_spline.bezier_points[-1]
                 bezt.co = co
                 # Move the thickness from style
-                if self._styles['thickness'] != None:
+                if self._styles['thickness']:
                     bezt.radius = float(self._styles['thickness'])
 
                 bezt.handle_left_type = point['handle_left_type']
@@ -1508,7 +1507,7 @@ class SVGGeometryRECT(SVGGeometry):
         bezt = spline.bezier_points[-1]
         bezt.co = co
         # Move the thickness from style
-        if self._styles['thickness'] != None:
+        if self._styles['thickness']:
             bezt.radius = float(self._styles['thickness'])
 
         if rounded:
@@ -1568,9 +1567,9 @@ class SVGGeometryRECT(SVGGeometry):
         else:
             cu.dimensions = '3D'
 
-        if self._styles['useStroke']:
+        if self._styles['useStroke'] and self._styles['stroke'] and self._styles['stroke'] != 'none':
             cu.materials.append(self._styles['stroke'])
-
+ 
         cu.splines.new('BEZIER')
 
         spline = cu.splines[-1]
@@ -1685,7 +1684,7 @@ class SVGGeometryELLIPSE(SVGGeometry):
         else:
             cu.dimensions = '3D'
 
-        if self._styles['useStroke']:
+        if self._styles['useStroke'] and self._styles['stroke'] and self._styles['stroke'] != 'none':
             cu.materials.append(self._styles['stroke'])
 
         coords = [((cx - rx, cy),
@@ -1724,7 +1723,7 @@ class SVGGeometryELLIPSE(SVGGeometry):
             bezt.handle_left = handle_left
             bezt.handle_right = handle_right
             # Move the thickness from style
-            if self._styles['thickness'] != None:
+            if self._styles['thickness']:
                 bezt.radius = float(self._styles['thickness'])
 
         SVGFinishCurve()
@@ -1822,7 +1821,7 @@ class SVGGeometryLINE(SVGGeometry):
             bezt.handle_left_type = 'VECTOR'
             bezt.handle_right_type = 'VECTOR'
             # Move the thickness from style
-            if self._styles['thickness'] != None:
+            if self._styles['thickness']:
                 bezt.radius = float(self._styles['thickness'])
 
         SVGFinishCurve()
@@ -1886,6 +1885,9 @@ class SVGGeometryPOLY(SVGGeometry):
         else:
             cu.dimensions = '3D'
 
+        if self._styles['useStroke'] and self._styles['stroke'] and self._styles['stroke'] != 'none':
+            cu.materials.append(self._styles['stroke'])
+
         spline = None
 
         for point in self._points:
@@ -1903,7 +1905,7 @@ class SVGGeometryPOLY(SVGGeometry):
             bezt.handle_left_type = 'VECTOR'
             bezt.handle_right_type = 'VECTOR'
             # Move the thickness from style
-            if self._styles['thickness'] != None:
+            if self._styles['thickness']:
                 bezt.radius = float(self._styles['thickness'])
 
         SVGFinishCurve()
@@ -2257,7 +2259,7 @@ def create_gpencil(context, scale):
     for ob_cu in context['curves']:
         if ob_cu:
             # Create the strokes
-            ob_cu.generate_gpencil_strokes(ob_gp)
+            ob_cu.generate_gpencil_strokes(grease_pencil_object=ob_gp, scale_thickness=0.20)
 
             # Remove temporary curve objects
             delete_curve_object(ob_cu)
