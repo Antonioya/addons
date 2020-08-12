@@ -80,7 +80,7 @@ class ImportSVG(bpy.types.Operator, ImportHelper):
     )
 
     scale_thickness: FloatProperty(
-        name='Scale Thickness', min=0.0, max=100, default=0.20,
+        name='Scale Thickness', min=0.001, max=100, default=0.30,
         precision=2,
         description='Scale thickness of points',
     )
