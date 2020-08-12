@@ -68,9 +68,21 @@ class ImportSVG(bpy.types.Operator, ImportHelper):
     )
 
     scale: FloatProperty(
-        name='Scale', min=0.5, max=50, default=3.0,
+        name='Scale Object', min=0.5, max=50, default=3.0,
         precision=2,
         description='Scale original file',
+    )
+
+    sample: FloatProperty(
+        name='Sample', min=0.0, max=50, default=0.001,
+        precision=3,
+        description='Sample Stroke distance, zero to disable',
+    )
+
+    scale_thickness: FloatProperty(
+        name='Scale Thickness', min=0.0, max=100, default=0.20,
+        precision=2,
+        description='Scale thickness of points',
     )
 
     def execute(self, context):
@@ -91,6 +103,10 @@ class ImportSVG(bpy.types.Operator, ImportHelper):
         if self.target == 'GPENCIL':
             row = layout.row(align=True)
             row.prop(self, "scale")
+            row = layout.row(align=True)
+            row.prop(self, "scale_thickness")
+            row = layout.row(align=True)
+            row.prop(self, "sample")
 
 
 def menu_func_import(self, context):

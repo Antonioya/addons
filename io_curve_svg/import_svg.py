@@ -221,8 +221,8 @@ def SVGGetMaterial(matname, color, context):
     materials = context['materials']
     rgb_re = re.compile('^\s*rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,(\d+)\s*\)\s*$')
 
-    if color in materials:
-        return materials[color]
+    # if color in materials:
+    #     return materials[color]
 
     diff = None
     if color.startswith('#'):
@@ -1569,7 +1569,7 @@ class SVGGeometryRECT(SVGGeometry):
 
         if self._styles['useStroke'] and self._styles['stroke'] and self._styles['stroke'] != 'none':
             cu.materials.append(self._styles['stroke'])
- 
+
         cu.splines.new('BEZIER')
 
         spline = cu.splines[-1]
@@ -2117,7 +2117,7 @@ class SVGLoader(SVGGeometryContainer):
 
         return None
 
-    def __init__(self, context, filepath, do_colormanage, use_collections):
+    def __init__(self, context, filepath, do_colormanage, use_collections, scale_thickness, sample):
         """
         Initialize SVG loader
         """
@@ -2154,7 +2154,9 @@ class SVGLoader(SVGGeometryContainer):
                          'curves': [None],
                          'inkscape': False,
                          'layer': None,
-                         'prev_layer': None}
+                         'prev_layer': None,
+                         'scale_thickness': scale_thickness,
+                         'sample': sample}
 
         super().__init__(node, self._context)
 
@@ -2255,11 +2257,14 @@ def create_gpencil(context, scale):
     # Lights off
     ob_gp.use_grease_pencil_lights = False
 
+    scale_thickness = context['scale_thickness']
+    sample = context['sample']
+
     # Generate strokes for each curve
     for ob_cu in context['curves']:
         if ob_cu:
             # Create the strokes
-            ob_cu.generate_gpencil_strokes(grease_pencil_object=ob_gp, scale_thickness=0.20)
+            ob_cu.generate_gpencil_strokes(grease_pencil_object=ob_gp, scale_thickness=scale_thickness, sample=sample)
 
             # Remove temporary curve objects
             delete_curve_object(ob_cu)
@@ -2282,7 +2287,7 @@ def create_gpencil(context, scale):
     bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
 
 
-def load_svg(context, filepath, do_colormanage, use_collections, target, scale):
+def load_svg(context, filepath, do_colormanage, use_collections, target, scale, scale_thickness, sample):
     """
     Load specified SVG file
     """
@@ -2293,7 +2298,7 @@ def load_svg(context, filepath, do_colormanage, use_collections, target, scale):
     # For GPencil use always collections to generate layers
     use_col = use_collections or target == 'GPENCIL'
 
-    loader = SVGLoader(context, filepath, do_colormanage, use_col)
+    loader = SVGLoader(context, filepath, do_colormanage, use_col, scale_thickness, sample)
     loader.parse()
     loader.createGeom(False)
 
@@ -2311,7 +2316,7 @@ def load(operator, context, filepath=""):
             operator.report({'WARNING'}, "No Collection active. Active one before importing SVG")
             return {'CANCELLED'}
 
-        load_svg(context, filepath, do_colormanage, operator.use_collections, operator.target, operator.scale)
+        load_svg(context, filepath, do_colormanage, operator.use_collections, operator.target, operator.scale, operator.scale_thickness, operator.sample)
     except (xml.parsers.expat.ExpatError, UnicodeEncodeError) as e:
         import traceback
         traceback.print_exc()
