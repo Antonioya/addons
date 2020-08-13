@@ -81,8 +81,8 @@ class ImportSVG(bpy.types.Operator, ImportHelper):
 
     sample: FloatProperty(
         name='Sample', min=0.0, max=50, default=0.0001,
-        precision=3,
-        description='Sample Stroke distance, zero to disable',
+        precision=4,
+        description='Sample Stroke distance, use low values for more precise conversion, zero to disable',
     )
 
     scale_thickness: FloatProperty(
