@@ -2192,12 +2192,16 @@ def parseAbstractNode(node, context):
     # layers
     if name == 'g':
         skip = False
+        # Special case for exported files from Blender using SVG exporter
         for child in node.childNodes:
             if child.nodeType == xml.dom.Node.TEXT_NODE:
                 continue
+
             if child.nodeType == xml.dom.Node.ELEMENT_NODE:
-                if child.tagName.lower() == 'g':
-                    skip = True
+                if child.tagName.lower() == 'g' and node.getAttribute('id'):
+                    txt = node.getAttribute('id')
+                    if txt.startswith("blender_"):
+                        skip = True
 
                 break
 
