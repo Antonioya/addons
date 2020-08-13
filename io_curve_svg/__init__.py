@@ -102,9 +102,11 @@ class ImportSVG(bpy.types.Operator, ImportHelper):
         row = layout.row(align=True)
         row.prop(self, "target")
 
-        if self.target == 'GPENCIL':
+        if self.target == 'CURVE':
             row = layout.row(align=True)
             row.prop(self, "use_collections")
+
+        if self.target == 'GPENCIL':
             row = layout.row(align=True)
             row.prop(self, "use_rotation")
 
