@@ -67,6 +67,12 @@ class ImportSVG(bpy.types.Operator, ImportHelper):
         default=True,
     )
 
+    use_rotation: BoolProperty(
+        name="Default Orientation",
+        description="Rotate strokes to default grease pencil orientation",
+        default=True,
+    )
+
     scale: FloatProperty(
         name='Scale Object', min=0.5, max=50, default=3.0,
         precision=2,
@@ -74,7 +80,7 @@ class ImportSVG(bpy.types.Operator, ImportHelper):
     )
 
     sample: FloatProperty(
-        name='Sample', min=0.0, max=50, default=0.001,
+        name='Sample', min=0.0, max=50, default=0.0001,
         precision=3,
         description='Sample Stroke distance, zero to disable',
     )
@@ -96,11 +102,12 @@ class ImportSVG(bpy.types.Operator, ImportHelper):
         row = layout.row(align=True)
         row.prop(self, "target")
 
-        if self.target != 'CURVE':
+        if self.target == 'GPENCIL':
             row = layout.row(align=True)
             row.prop(self, "use_collections")
+            row = layout.row(align=True)
+            row.prop(self, "use_rotation")
 
-        if self.target == 'GPENCIL':
             row = layout.row(align=True)
             row.prop(self, "scale")
             row = layout.row(align=True)

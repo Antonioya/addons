@@ -20,7 +20,7 @@
 
 import re
 import xml.dom.minidom
-from math import cos, sin, tan, atan2, pi, ceil
+from math import cos, sin, tan, atan2, pi, ceil, radians
 
 import bpy
 from mathutils import Vector, Matrix
@@ -2117,7 +2117,7 @@ class SVGLoader(SVGGeometryContainer):
 
         return None
 
-    def __init__(self, context, filepath, do_colormanage, use_collections, scale_thickness, sample):
+    def __init__(self, context, filepath, do_colormanage, use_collections, use_rotation, scale_thickness, sample):
         """
         Initialize SVG loader
         """
@@ -2132,8 +2132,15 @@ class SVGLoader(SVGGeometryContainer):
         node = xml.dom.minidom.parse(filepath)
 
         m = Matrix()
+        matrix_z = Matrix()
+        # Set default grease pencil orientation
+        if use_rotation:
+            matrix_z = Matrix.Rotation(radians(90.0), 4, 'X')
+            m = m @ matrix_z
+
         m = m @ Matrix.Scale(1.0 / 90.0 * 0.3048 / 12.0, 4, Vector((1.0, 0.0, 0.0)))
         m = m @ Matrix.Scale(-1.0 / 90.0 * 0.3048 / 12.0, 4, Vector((0.0, 1.0, 0.0)))
+
 
         rect = (0, 0)
 
@@ -2291,7 +2298,7 @@ def create_gpencil(context, scale):
     bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
 
 
-def load_svg(context, filepath, do_colormanage, use_collections, target, scale, scale_thickness, sample):
+def load_svg(context, filepath, do_colormanage, use_collections, use_rotation, target, scale, scale_thickness, sample):
     """
     Load specified SVG file
     """
@@ -2302,7 +2309,7 @@ def load_svg(context, filepath, do_colormanage, use_collections, target, scale, 
     # For GPencil use always collections to generate layers
     use_col = use_collections or target == 'GPENCIL'
 
-    loader = SVGLoader(context, filepath, do_colormanage, use_col, scale_thickness, sample)
+    loader = SVGLoader(context, filepath, do_colormanage, use_col, use_rotation, scale_thickness, sample)
     loader.parse()
     loader.createGeom(False)
 
@@ -2320,7 +2327,8 @@ def load(operator, context, filepath=""):
             operator.report({'WARNING'}, "No Collection active. Active one before importing SVG")
             return {'CANCELLED'}
 
-        load_svg(context, filepath, do_colormanage, operator.use_collections, operator.target, operator.scale, operator.scale_thickness, operator.sample)
+        load_svg(context, filepath, do_colormanage, operator.use_collections, operator.use_rotation,
+         operator.target, operator.scale, operator.scale_thickness, operator.sample)
     except (xml.parsers.expat.ExpatError, UnicodeEncodeError) as e:
         import traceback
         traceback.print_exc()
