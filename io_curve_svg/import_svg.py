@@ -35,14 +35,14 @@ from .svg_util import (units,
 #### Common utilities ####
 
 SVGEmptyClasses = {'clskey': None,
-                  'fill': None,
-                  'fill-end': None,
-                  'fill-end-opacity': None,
-                  'stroke': None,
-                  'fill-opacity': None,
-                  'stroke-opacity': None,
-                  'thickness': None,
-                  'rotation': None}
+                   'fill': None,
+                   'fill-end': None,
+                   'fill-end-opacity': None,
+                   'stroke': None,
+                   'fill-opacity': None,
+                   'stroke-opacity': None,
+                   'thickness': None,
+                   'rotation': None}
 
 
 SVGEmptyStyles = {'useFill': None,
@@ -1156,29 +1156,6 @@ class SVGGeometry:
 
         return None
 
-    def setGradient(self):
-        if self._styles['fill-end']:
-            mat = self._styles['fill']
-            fill_end = get_color_from_hex(self._styles['fill-end'], self._context)
-            if self._styles['fill-end-opacity']:
-                fill_end_opacity = self._styles['fill-end-opacity']
-                fill_end[3] = fill_end_opacity
-
-            rotation = self._styles['rotation']
-
-            if mat and mat.grease_pencil is None:
-                bpy.data.materials.create_gpencil_data(mat)
-
-            if mat and mat.grease_pencil:
-                gpmat = mat.grease_pencil
-                gpmat.show_fill = True
-                gpmat.fill_style = 'GRADIENT'
-                gpmat.mix_color = fill_end
-                gpmat.mix_factor = 0.5
-                if rotation:
-                    gpmat.pattern_angle = rotation
-
-
     def createGeom(self, instancing):
         """
         Create real geometries
@@ -1321,7 +1298,6 @@ class SVGGeometryPATH(SVGGeometry):
         id_names_from_node(self._node, ob)
 
         if self._styles['useFill']:
-            self.setGradient()
             cu.dimensions = '2D'
             cu.fill_mode = 'BOTH'
             cu.materials.append(self._styles['fill'])
@@ -1560,7 +1536,6 @@ class SVGGeometryRECT(SVGGeometry):
         cu = ob.data
 
         if self._styles['useFill']:
-            self.setGradient()
             cu.dimensions = '2D'
             cu.fill_mode = 'BOTH'
             cu.materials.append(self._styles['fill'])
@@ -1677,7 +1652,6 @@ class SVGGeometryELLIPSE(SVGGeometry):
         id_names_from_node(self._node, ob)
 
         if self._styles['useFill']:
-            self.setGradient()
             cu.dimensions = '2D'
             cu.fill_mode = 'BOTH'
             cu.materials.append(self._styles['fill'])
@@ -1878,7 +1852,6 @@ class SVGGeometryPOLY(SVGGeometry):
         id_names_from_node(self._node, ob)
 
         if self._closed and self._styles['useFill']:
-            self.setGradient()
             cu.dimensions = '2D'
             cu.fill_mode = 'BOTH'
             cu.materials.append(self._styles['fill'])
