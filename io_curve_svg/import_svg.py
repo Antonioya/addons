@@ -499,6 +499,9 @@ def SVGParseStyles(node, context):
         styles['useFill'] = True
         styles['fill'] = SVGGetMaterial('SVGMat', '#000', context)
 
+    if styles['fill'] is None and styles['stroke'] is None and context['gstyle'] is not None:
+        styles = context['gstyle'].copy()
+
     return styles
 
 def id_names_from_node(node, ob):
@@ -1281,6 +1284,8 @@ class SVGGeometryPATH(SVGGeometry):
         d = self._node.getAttribute('d')
 
         self._styles = SVGParseStyles(self._node, self._context)
+        # if self._styles['fill'] is None and self._styles['stroke'] is None and self._context['gstyle']:
+        #     self._styles = self._context['gstyle'].copy()
 
         pathParser = SVGPathParser(d, self._styles['useFill'])
         pathParser.parse()
@@ -1398,6 +1403,9 @@ class SVGGeometryG(SVGGeometryContainer):
     """
     def parse(self):
         node = self._node
+
+        self._context['gstyle'] = SVGParseStyles(node, self._context)
+
         skip = False
         # Special case for exported files from Blender using SVG exporter
         for child in node.childNodes:
@@ -2167,6 +2175,7 @@ class SVGLoader(SVGGeometryContainer):
                          'classes': [None],
                          'styles': [None],
                          'style': None,
+                         'gstyle': None,
                          'do_colormanage': do_colormanage,
                          'collection': collection,
                          'use_collections': use_collections,
