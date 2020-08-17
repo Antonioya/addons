@@ -1396,6 +1396,40 @@ class SVGGeometryG(SVGGeometryContainer):
     """
     Geometry group
     """
+    def parse(self):
+        node = self._node
+        skip = False
+        # Special case for exported files from Blender using SVG exporter
+        for child in node.childNodes:
+            if child.nodeType == xml.dom.Node.TEXT_NODE:
+                continue
+
+            if child.nodeType == xml.dom.Node.ELEMENT_NODE:
+                if child.tagName.lower() == 'g' and node.getAttribute('id'):
+                    txt = node.getAttribute('id')
+                    if txt.startswith("blender_"):
+                        skip = True
+
+                break
+
+        if skip is False:
+            layer = None
+            if node.getAttribute('inkscape:label'):
+                layer = node.getAttribute('inkscape:label')
+            # Illustrator use id for name
+            elif node.getAttribute('id') and self._context['inkscape'] is False:
+                layer = node.getAttribute('id')
+
+            # Create a collection by SVG layer
+            if layer and self._context['use_collections']:
+                self._context['layer'] = layer
+                if layer != self._context['prev_layer']:
+                    self._context['prev_layer'] = layer
+                    collection = bpy.data.collections.new(name=layer)
+                    self._context['layer'] = collection.name
+                    self._context['collection'].children.link(collection)
+
+        super().parse()
 
     pass
 
@@ -1911,6 +1945,11 @@ class SVGGeometrySVG(SVGGeometryContainer):
     """
     Main geometry holder
     """
+    def parse(self):
+        if self._node.getAttribute('inkscape:version'):
+            self._context['inkscape'] = True
+
+        super().parse()
 
     def _doCreateGeom(self, instancing):
         """
@@ -2160,47 +2199,7 @@ svgGeometryClasses = {
 
 def parseAbstractNode(node, context):
     name = node.tagName.lower()
-
-    if name.startswith('svg:'):
-        name = name[4:]
-
-    if node.getAttribute('inkscape:version'):
-        context['inkscape'] = True
-
     geomClass = svgGeometryClasses.get(name)
-
-    # layers
-    if name == 'g':
-        skip = False
-        # Special case for exported files from Blender using SVG exporter
-        for child in node.childNodes:
-            if child.nodeType == xml.dom.Node.TEXT_NODE:
-                continue
-
-            if child.nodeType == xml.dom.Node.ELEMENT_NODE:
-                if child.tagName.lower() == 'g' and node.getAttribute('id'):
-                    txt = node.getAttribute('id')
-                    if txt.startswith("blender_"):
-                        skip = True
-
-                break
-
-        if skip is False:
-            layer = None
-            if node.getAttribute('inkscape:label'):
-                layer = node.getAttribute('inkscape:label')
-            # Illustrator use id for name
-            elif node.getAttribute('id') and context['inkscape'] is False:
-                layer = node.getAttribute('id')
-
-            # Create a collection by SVG layer
-            if layer and context['use_collections']:
-                context['layer'] = layer
-                if layer != context['prev_layer']:
-                    context['prev_layer'] = layer
-                    collection = bpy.data.collections.new(name=layer)
-                    context['layer'] = collection.name
-                    context['collection'].children.link(collection)
 
     if geomClass is not None:
         ob = geomClass(node, context)
@@ -2245,8 +2244,10 @@ def create_gpencil(context, scale):
     sample = context['sample']
 
     # Generate strokes for each curve
+    done = False
     for ob_cu in context['curves']:
         if ob_cu:
+            done = True
             # Create the strokes
             ob_cu.generate_gpencil_strokes(grease_pencil_object=ob_gp, scale_thickness=scale_thickness, sample=sample)
 
@@ -2265,10 +2266,11 @@ def create_gpencil(context, scale):
         o.select_set(False)
 
     # Apply scale
-    ob_gp.select_set(True)
-    bpy.context.view_layer.objects.active = ob_gp
-    bpy.ops.object.transform_apply()
-    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+    if done:
+        ob_gp.select_set(True)
+        bpy.context.view_layer.objects.active = ob_gp
+        bpy.ops.object.transform_apply()
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
 
 
 def load_svg(context, filepath, do_colormanage, use_collections, use_rotation, target, scale, scale_thickness, sample):
