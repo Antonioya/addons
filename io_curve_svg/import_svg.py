@@ -1284,8 +1284,6 @@ class SVGGeometryPATH(SVGGeometry):
         d = self._node.getAttribute('d')
 
         self._styles = SVGParseStyles(self._node, self._context)
-        # if self._styles['fill'] is None and self._styles['stroke'] is None and self._context['gstyle']:
-        #     self._styles = self._context['gstyle'].copy()
 
         pathParser = SVGPathParser(d, self._styles['useFill'])
         pathParser.parse()
@@ -2311,12 +2309,17 @@ def load(operator, context, filepath=""):
             operator.report({'WARNING'}, "No Collection active. Active one before importing SVG")
             return {'CANCELLED'}
 
+        bpy.context.window.cursor_set("WAIT")
+
         load_svg(context, filepath, do_colormanage, operator.use_collections, operator.use_rotation,
          operator.target, operator.scale, operator.scale_thickness, operator.sample)
+
+        bpy.context.window.cursor_set("DEFAULT")
+
     except (xml.parsers.expat.ExpatError, UnicodeEncodeError) as e:
         import traceback
         traceback.print_exc()
-
+        bpy.context.window.cursor_set("DEFAULT")
         operator.report({'WARNING'}, "Unable to parse XML, %s:%s for file %r" % (type(e).__name__, e, filepath))
         return {'CANCELLED'}
 
