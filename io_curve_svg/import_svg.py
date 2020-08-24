@@ -36,8 +36,6 @@ from .svg_util import (units,
 
 SVGEmptyClasses = {'clskey': None,
                    'fill': None,
-                   'fill-end': None,
-                   'fill-end-opacity': None,
                    'stroke': None,
                    'fill-opacity': None,
                    'stroke-opacity': None,
@@ -46,8 +44,6 @@ SVGEmptyClasses = {'clskey': None,
 
 SVGEmptyStyles = {'useFill': None,
                   'fill': None,
-                  'fill-end': None,
-                  'fill-end-opacity': None,
                   'useStroke': None,
                   'stroke': None,
                   'thickness': None}
@@ -379,8 +375,6 @@ def SVGParseStyles(node, context):
 
         if c:
             fill = c['fill']
-            fill_end = c['fill-end']
-            fill_end_opacity = c['fill-end-opacity']
             thickness = c['thickness']
             stroke = c['stroke']
             fill_opacity = c['fill-opacity']
@@ -403,8 +397,6 @@ def SVGParseStyles(node, context):
                     url = url_full[:url_full.find(')')].lower()
                     c = get_style_from_class(context, url)
                     fill = c['fill']
-                    fill_end = c['fill-end']
-                    fill_end_opacity = c['fill-end-opacity']
                 else:
                     val = val.lower()
                     fill = val
@@ -443,12 +435,6 @@ def SVGParseStyles(node, context):
         else:
             styles['useFill'] = True
             styles['fill'] = SVGGetMaterial('SVGMat', val, context)
-
-    if fill_end:
-        styles['fill-end'] = fill_end
-
-    if fill_end_opacity:
-        styles['fill-end-opacity'] = fill_end_opacity
 
     if stroke:
         styles['useStroke'] = True
