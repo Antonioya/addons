@@ -41,8 +41,7 @@ SVGEmptyClasses = {'clskey': None,
                    'stroke': None,
                    'fill-opacity': None,
                    'stroke-opacity': None,
-                   'thickness': None,
-                   'rotation': None}
+                   'thickness': None}
 
 
 SVGEmptyStyles = {'useFill': None,
@@ -51,8 +50,7 @@ SVGEmptyStyles = {'useFill': None,
                   'fill-end-opacity': None,
                   'useStroke': None,
                   'stroke': None,
-                  'thickness': None,
-                  'rotation': None}
+                  'thickness': None}
 
 
 def SVGCreateCurve(context, layer):
@@ -372,7 +370,6 @@ def SVGParseStyles(node, context):
     thickness = None
     fill_opacity = None
     stroke_opacity = None
-    rotation = None
 
     cla = node.getAttribute('class')
     style = node.getAttribute('style')
@@ -391,7 +388,6 @@ def SVGParseStyles(node, context):
             stroke = c['stroke']
             fill_opacity = c['fill-opacity']
             stroke_opacity = c['stroke-opacity']
-            rotation = c['rotation']
 
     elif style:
         elems = style.split(';')
@@ -412,7 +408,6 @@ def SVGParseStyles(node, context):
                     fill = c['fill']
                     fill_end = c['fill-end']
                     fill_end_opacity = c['fill-end-opacity']
-                    rotation = c['rotation']
                 else:
                     val = val.lower()
                     fill = val
@@ -468,9 +463,6 @@ def SVGParseStyles(node, context):
 
     if thickness and thickness != 'none':
         styles['thickness'] = thickness
-
-    if rotation:
-        styles['rotation'] = rotation
 
     if fill_opacity and fill_opacity != 'none':
         mat = styles['fill']
