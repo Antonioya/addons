@@ -1237,26 +1237,6 @@ class SVGGeometryContainer(SVGGeometry):
 
         return self._geometries
 
-def get_color_from_hex(color, context):
-    diff = None
-    diffuse_color = (0, 0, 0, 1.0)
-
-    if color.startswith('#'):
-        color = color[1:]
-        if len(color) == 3:
-            color = color[0] * 2 + color[1] * 2 + color[2] * 2
-
-        diff = (int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16))
-
-        diffuse_color = ([x / 255.0 for x in diff])
-
-    if context['do_colormanage']:
-        diffuse_color[0] = srgb_to_linearrgb(diffuse_color[0])
-        diffuse_color[1] = srgb_to_linearrgb(diffuse_color[1])
-        diffuse_color[2] = srgb_to_linearrgb(diffuse_color[2])
-
-    return [*diffuse_color, 1.0]
-
 
 class SVGGeometryPATH(SVGGeometry):
     """
@@ -2062,64 +2042,6 @@ class SVGGeometryCLASTYLE(SVGGeometryContainer):
                 context['classes'].append(cla)
 
 
-class SVGGeometryLINEARGRAD(SVGGeometryContainer):
-
-    def __init__(self, node, context):
-
-        super().__init__(node, context)
-
-        attr_id = node.getAttribute('id')
-        cla = SVGEmptyClasses.copy()
-        cla['clskey'] = attr_id.lower()
-
-        # Calc angle of gradient
-        if node.getAttribute('x1'):
-            x1 = float(node.getAttribute('x1'))
-            y1 = float(node.getAttribute('y1'))
-            x2 = float(node.getAttribute('x2'))
-            y2 = float(node.getAttribute('y2'))
-
-            v1 = Vector((x2 - x1, y2 - y1))
-            # Default axis orientation
-            v2 = Vector((1.0, 0.0))
-            cla['rotation'] = v2.angle(v1)
-        else:
-            cla['rotation'] = 0.0
-
-        if node.getAttribute('xlink:href'):
-            ref = node.getAttribute('xlink:href')
-            url = ref[1:].lower()
-            c = get_style_from_class(context, url)
-            if c:
-                cla['fill'] = c['fill']
-                cla['fill-end'] = c['fill-end']
-                cla['fill-end-opacity'] = c['fill-end-opacity']
-        else:
-            key = 'fill'
-            for _node in node.childNodes:
-                if _node.nodeName == 'stop':
-                    style = _node.getAttribute('style')
-                    elems = style.split(';')
-                    for elem in elems:
-                        s = elem.split(':')
-                        if len(s) != 2:
-                            continue
-
-                        name = s[0].strip().lower()
-                        val = s[1].strip()
-
-                        if name == 'stop-color':
-                            val = val.lower()
-                            cla[key] = val
-                            # now save the last value
-                            key = 'fill-end'
-
-                        if name == 'stop-opacity':
-                            cla['fill-end-opacity'] = float(val)
-
-        context['classes'].append(cla)
-
-
 class SVGLoader(SVGGeometryContainer):
     """
     SVG file loader
@@ -2200,8 +2122,7 @@ svgGeometryClasses = {
     'line': SVGGeometryLINE,
     'polyline': SVGGeometryPOLYLINE,
     'polygon': SVGGeometryPOLYGON,
-    'g': SVGGeometryG,
-    'lineargradient': SVGGeometryLINEARGRAD}
+    'g': SVGGeometryG}
 
 
 def parseAbstractNode(node, context):
