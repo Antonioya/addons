@@ -219,9 +219,6 @@ def SVGGetMaterial(matname, color, context):
     materials = context['materials']
     rgb_re = re.compile('^\s*rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,(\d+)\s*\)\s*$')
 
-    # if color in materials:
-    #     return materials[color]
-
     diff = None
     if color.startswith('#'):
         color = color[1:]
