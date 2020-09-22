@@ -2038,7 +2038,7 @@ class SVGLoader(SVGGeometryContainer):
         """
         import os
 
-        active_collection = bpy.context.view_layer.active_layer_collection
+        active_collection = context.view_layer.active_layer_collection
         svg_name = os.path.basename(filepath)
         scene = context.scene
         collection = bpy.data.collections.new(name=svg_name)
@@ -2171,7 +2171,7 @@ def create_gpencil(context, scale):
     # Apply scale
     if done:
         ob_gp.select_set(True)
-        bpy.context.view_layer.objects.active = ob_gp
+        context.view_layer.objects.active = ob_gp
         bpy.ops.object.transform_apply()
         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
 
@@ -2200,22 +2200,22 @@ def load(operator, context, filepath=""):
     do_colormanage = context.scene.display_settings.display_device != 'NONE'
     try:
         # Check we have one Collection
-        active_collection = bpy.context.view_layer.active_layer_collection
+        active_collection = context.view_layer.active_layer_collection
         if active_collection is None or active_collection.name == 'Master Collection':
             operator.report({'WARNING'}, "No Collection active. Active one before importing SVG")
             return {'CANCELLED'}
 
-        bpy.context.window.cursor_set("WAIT")
+        context.window.cursor_set("WAIT")
 
         load_svg(context, filepath, do_colormanage, operator.use_collections, operator.use_rotation,
          operator.target, operator.scale, operator.scale_thickness, operator.sample)
 
-        bpy.context.window.cursor_set("DEFAULT")
+        context.window.cursor_set("DEFAULT")
 
     except (xml.parsers.expat.ExpatError, UnicodeEncodeError) as e:
         import traceback
         traceback.print_exc()
-        bpy.context.window.cursor_set("DEFAULT")
+        context.window.cursor_set("DEFAULT")
         operator.report({'WARNING'}, "Unable to parse XML, %s:%s for file %r" % (type(e).__name__, e, filepath))
         return {'CANCELLED'}
 
