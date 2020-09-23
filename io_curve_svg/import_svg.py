@@ -339,12 +339,12 @@ SVGTransforms = {'translate': SVGTransformTranslate,
                  'matrix': SVGTransformMatrix,
                  'rotate': SVGTransformRotate}
 
-def get_style_from_class(context, cla):
-    for c in context['classes']:
-        if c is None:
+def get_style_from_class(context, classtofind):
+    for cls in context['classes']:
+        if cls is None:
             continue
         # Find this style
-        if (c['clskey'] == cla):
+        if (cls['clskey'] == classtofind):
             return c
 
     return None
@@ -364,22 +364,21 @@ def SVGParseStyles(node, context):
     fill_opacity = None
     stroke_opacity = None
 
-    cla = node.getAttribute('class')
+    node_class = node.getAttribute('class')
     style = node.getAttribute('style')
-    if cla:
-        c = get_style_from_class(context, cla)
-        if c and c['fill'].startswith('url'):
-            url_full = c['fill'][5:]
+    if node_class:
+        style = get_style_from_class(context, node_class)
+        if style and style['fill'].startswith('url'):
+            url_full = style['fill'][5:]
             url = url_full[:url_full.find('}')]
-            c = get_style_from_class(context, url)
+            style = get_style_from_class(context, url)
 
-        if c:
-            fill = c['fill']
-            thickness = c['thickness']
-            stroke = c['stroke']
-            fill_opacity = c['fill-opacity']
-            stroke_opacity = c['stroke-opacity']
-
+        if style:
+            fill = style['fill']
+            thickness = style['thickness']
+            stroke = style['stroke']
+            fill_opacity = style['fill-opacity']
+            stroke_opacity = style['stroke-opacity']
     elif style:
         elems = style.split(';')
         for elem in elems:
@@ -395,14 +394,12 @@ def SVGParseStyles(node, context):
                 if val and val.startswith('url'):
                     url_full = val[5:]
                     url = url_full[:url_full.find(')')].lower()
-                    c = get_style_from_class(context, url)
-                    fill = c['fill']
+                    node_style = get_style_from_class(context, url)
+                    fill = node_style['fill']
                 else:
-                    val = val.lower()
-                    fill = val
+                    fill = val.lower()
             elif name == 'stroke':
-                val = val.lower()
-                stroke = val
+                stroke = val.lower()
             elif name == 'stroke-width':
                 number, last_char = read_float(val)
                 thickness = float(number)
@@ -430,7 +427,6 @@ def SVGParseStyles(node, context):
         else:
             styles['useFill'] = True
             styles['fill'] = SVGGetMaterial('SVGMat', val, context)
-
     if stroke:
         styles['useStroke'] = True
         val = stroke.lower()
@@ -438,20 +434,16 @@ def SVGParseStyles(node, context):
             styles['stroke'] = SVGGetMaterial('SVGMat_stroke', val, context)
         else:
             styles['stroke'] = None
-
     if thickness and thickness != 'none':
         styles['thickness'] = thickness
-
     if fill_opacity and fill_opacity != 'none':
         mat = styles['fill']
         if mat:
             mat.diffuse_color[3] = float(fill_opacity)
-
     if stroke_opacity and stroke_opacity != 'none':
         mat = styles['stroke']
         if mat:
             mat.diffuse_color[3] = float(stroke_opacity)
-
     if styles['useFill'] is None:
         fill = node.getAttribute('fill')
         if fill:
@@ -461,14 +453,11 @@ def SVGParseStyles(node, context):
             else:
                 styles['useFill'] = True
                 styles['fill'] = SVGGetMaterial('SVGMat', fill, context)
-
     if styles['useFill'] is None and context['style']:
         styles = context['style'].copy()
-
     if styles['useFill'] is None:
         styles['useFill'] = True
         styles['fill'] = SVGGetMaterial('SVGMat', '#000', context)
-
     if styles['fill'] is None and styles['stroke'] is None and context['gstyle'] is not None:
         styles = context['gstyle'].copy()
 
