@@ -2108,10 +2108,12 @@ def delete_curve_object(ob):
         return
 
     # Clear materials
+    material_num = 0
     for slot in ob.material_slots:
         ma = slot.material
         if ma and ma.users == 1:
             bpy.data.materials.remove(ma)
+            material_num += 1
 
     # Delete Object
     bpy.data.objects.remove(ob)
@@ -2121,6 +2123,7 @@ def delete_curve_object(ob):
         if cu and cu.users == 0:
             bpy.data.curves.remove(cu)
 
+    return material_num
 
 def create_gpencil(context, scale):
     # Add a new grease pencil object and link to active collection
@@ -2140,6 +2143,7 @@ def create_gpencil(context, scale):
 
     # Generate strokes for each curve
     done = False
+    tot_materials = 0
     for ob_cu in context['curves']:
         if ob_cu:
             done = True
@@ -2147,7 +2151,7 @@ def create_gpencil(context, scale):
             ob_cu.generate_gpencil_strokes(grease_pencil_object=ob_gpencil, scale_thickness=scale_thickness, sample=sample)
 
             # Remove temporary curve objects
-            delete_curve_object(ob_cu)
+            tot_materials += delete_curve_object(ob_cu)
 
     # Remove all collections created, first all childs and finally the main one
     collection = bpy.data.collections[context['svg']]
@@ -2155,6 +2159,15 @@ def create_gpencil(context, scale):
         bpy.data.collections.remove(child)
 
     bpy.data.collections.remove(collection)
+
+    # Clear unused grease pencil materials
+    for ma in bpy.data.materials:
+        if ma.is_grease_pencil and ma.users == 0:
+            bpy.data.materials.remove(ma)
+            tot_materials += 1
+
+    # Cleanup orphan data
+    bpy.ops.outliner.orphans_purge(num_deleted=tot_materials)
 
     # Deselect all objects
     for o in bpy.data.objects:
