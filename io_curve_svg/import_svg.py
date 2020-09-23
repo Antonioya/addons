@@ -400,23 +400,18 @@ def SVGParseStyles(node, context):
                 else:
                     val = val.lower()
                     fill = val
-
-            if name == 'stroke':
+            elif name == 'stroke':
                 val = val.lower()
                 stroke = val
-
-            if name == 'stroke-width':
+            elif name == 'stroke-width':
                 number, last_char = read_float(val)
                 thickness = float(number)
-
-            if name == 'fill-opacity':
+            elif name == 'fill-opacity':
                 number, last_char = read_float(val)
                 fill_opacity = float(number)
-
-            if name == 'opacity':
+            elif name == 'opacity':
                 fill_opacity = float(val)
-
-            if name == 'stroke-opacity':
+            elif name == 'stroke-opacity':
                 number, last_char = read_float(val)
                 stroke_opacity = float(number)
     else:
@@ -1938,10 +1933,10 @@ class SVGGeometrySVG(SVGGeometryContainer):
 
         if len(viewbox) == 4 and unit in ('cm', 'mm', 'in', 'pt', 'pc'):
 
-            #convert units to BU:
+            # convert units to BU:
             unitscale = units[unit] / 90 * 1000 / 39.3701
 
-            #apply blender unit scale:
+            # apply blender unit scale:
             unitscale = unitscale / bpy.context.scene.unit_settings.scale_length
 
             matrix = matrix @ Matrix.Scale(unitscale, 4, Vector((1.0, 0.0, 0.0)))
@@ -1995,22 +1990,17 @@ class SVGGeometryCLASTYLE(SVGGeometryContainer):
                     if name == 'fill':
                         val = val.lower()
                         cla['fill'] = val
-
-                    if name == 'stroke':
+                    elif name == 'stroke':
                         cla['stroke'] = val
-
-                    if name == 'fill-opacity':
+                    elif name == 'fill-opacity':
                         number, last_char = read_float(val)
                         cla['fill-opacity'] = float(number)
-
-                    if name == 'opacity':
+                    elif name == 'opacity':
                         cla['fill-opacity'] = float(val)
-
-                    if name == 'stroke-opacity':
+                    elif name == 'stroke-opacity':
                         number, last_char = read_float(val)
                         cla['stroke-opacity'] = float(number)
-
-                    if name == 'stroke-width':
+                    elif name == 'stroke-width':
                         number, last_char = read_float(val)
                         cla['thickness'] = float(number)
 
@@ -2112,6 +2102,7 @@ def parseAbstractNode(node, context):
 
     return None
 
+
 def delete_curve_object(ob):
     if ob is None:
         return
@@ -2129,6 +2120,7 @@ def delete_curve_object(ob):
     for cu in bpy.data.curves:
         if cu and cu.users == 0:
             bpy.data.curves.remove(cu)
+
 
 def create_gpencil(context, scale):
     # Add a new grease pencil object and link to active collection
@@ -2193,6 +2185,7 @@ def load_svg(context, filepath, do_colormanage, use_collections, use_rotation, t
 
     if target == 'GPENCIL':
         create_gpencil(loader._context, scale)
+
 
 def load(operator, context, filepath=""):
     # error in code should raise exceptions but loading
