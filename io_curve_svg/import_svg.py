@@ -49,7 +49,7 @@ SVGEmptyStyles = {'useFill': None,
                   'thickness': None}
 
 
-def SVGCreateCurve(context, layer):
+def SVGCreateCurve(context, layer_name):
     """
     Create new curve object to hold splines in
     """
@@ -60,7 +60,7 @@ def SVGCreateCurve(context, layer):
     # Save the curve object to get the list of objects created
     context['curves'].append(obj)
 
-    sub_collection = bpy.data.collections[layer]
+    sub_collection = bpy.data.collections[layer_name]
     if sub_collection:
         sub_collection.objects.link(obj)
     else:
@@ -1010,7 +1010,7 @@ class SVGGeometry:
 
     __slots__ = ('_node',  # XML node for geometry
                  '_context',   # Global SVG context (holds matrices stack, i.e.)
-                 '_layer',     # Collection used as layer
+                 '_layer_name',     # Collection used as layer
                  '_creating')  # Flag if geometry is already creating
                                # for this node
                                # need to detect cycles for USE node
@@ -1023,10 +1023,10 @@ class SVGGeometry:
         self._node = node
         self._context = context
         self._creating = False
-        if context['layer'] is None:
-            self._layer = context['collection'].name
+        if context['layer_name'] is None:
+            self._layer_name = context['collection'].name
         else:
-            self._layer = context['layer']
+            self._layer_name = context['layer_name']
 
         if hasattr(node, 'getAttribute'):
             defs = context['defines']
@@ -1188,7 +1188,7 @@ class SVGGeometryContainer(SVGGeometry):
             ob = parseAbstractNode(node, self._context)
             if ob is not None:
                 self._geometries.append(ob)
-                self._layers.append(self._context['layer'])
+                self._layers.append(self._context['layer_name'])
 
         self._popStyle()
 
@@ -1245,7 +1245,7 @@ class SVGGeometryPATH(SVGGeometry):
         Create real geometries
         """
 
-        ob = SVGCreateCurve(self._context, self._layer)
+        ob = SVGCreateCurve(self._context, self._layer_name)
         cu = ob.data
 
         id_names_from_node(self._node, ob)
@@ -1369,20 +1369,20 @@ class SVGGeometryG(SVGGeometryContainer):
                 break
 
         if skip is False:
-            layer = None
+            layer_name = None
             if node.getAttribute('inkscape:label'):
-                layer = node.getAttribute('inkscape:label')
+                layer_name = node.getAttribute('inkscape:label')
             # Illustrator use id for name
             elif node.getAttribute('id') and self._context['inkscape'] is False:
-                layer = node.getAttribute('id')
+                layer_name = node.getAttribute('id')
 
             # Create a collection by SVG layer
-            if layer and self._context['use_collections']:
-                self._context['layer'] = layer
-                if layer != self._context['prev_layer']:
-                    self._context['prev_layer'] = layer
-                    collection = bpy.data.collections.new(name=layer)
-                    self._context['layer'] = collection.name
+            if layer_name and self._context['use_collections']:
+                self._context['layer_name'] = layer_name
+                if layer_name != self._context['prev_layer_name']:
+                    self._context['prev_layer_name'] = layer_name
+                    collection = bpy.data.collections.new(name=layer_name)
+                    self._context['layer_name'] = collection.name
                     self._context['collection'].children.link(collection)
 
         super().parse()
@@ -1522,7 +1522,7 @@ class SVGGeometryRECT(SVGGeometry):
         radius = (rx, ry)
 
         # Geometry creation
-        ob = SVGCreateCurve(self._context, self._layer)
+        ob = SVGCreateCurve(self._context, self._layer_name)
         cu = ob.data
 
         if self._styles['useFill']:
@@ -1636,7 +1636,7 @@ class SVGGeometryELLIPSE(SVGGeometry):
             return
 
         # Create circle
-        ob = SVGCreateCurve(self._context, self._layer)
+        ob = SVGCreateCurve(self._context, self._layer_name)
         cu = ob.data
 
         id_names_from_node(self._node, ob)
@@ -1762,7 +1762,7 @@ class SVGGeometryLINE(SVGGeometry):
         y2 = SVGParseCoord(self._y2, crect[1])
 
         # Create cline
-        ob = SVGCreateCurve(self._context, self._layer)
+        ob = SVGCreateCurve(self._context, self._layer_name)
         cu = ob.data
 
         id_names_from_node(self._node, ob)
@@ -1836,7 +1836,7 @@ class SVGGeometryPOLY(SVGGeometry):
         Create real geometries
         """
 
-        ob = SVGCreateCurve(self._context, self._layer)
+        ob = SVGCreateCurve(self._context, self._layer_name)
         cu = ob.data
 
         id_names_from_node(self._node, ob)
@@ -2066,8 +2066,8 @@ class SVGLoader(SVGGeometryContainer):
                          'use_collections': use_collections,
                          'curves': [None],
                          'inkscape': False,
-                         'layer': None,
-                         'prev_layer': None,
+                         'layer_name': None,
+                         'prev_layer_name': None,
                          'scale_thickness': scale_thickness,
                          'sample': sample}
 
