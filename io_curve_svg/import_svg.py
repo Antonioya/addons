@@ -2127,13 +2127,13 @@ def create_gpencil(context, scale):
     svg_name = context['svg']
     main_name = svg_name[: -4]
     gpd = bpy.data.grease_pencils.new(main_name)
-    ob_gp = bpy.data.objects.new(main_name, gpd)
+    ob_gpencil = bpy.data.objects.new(main_name, gpd)
     active_collection = context['active_collection'].name
-    bpy.data.collections[active_collection].objects.link(ob_gp)
+    bpy.data.collections[active_collection].objects.link(ob_gpencil)
     # Scale
-    ob_gp.scale = (scale, scale, scale)
+    ob_gpencil.scale = (scale, scale, scale)
     # Lights off
-    ob_gp.use_grease_pencil_lights = False
+    ob_gpencil.use_grease_pencil_lights = False
 
     scale_thickness = context['scale_thickness']
     sample = context['sample']
@@ -2144,7 +2144,7 @@ def create_gpencil(context, scale):
         if ob_cu:
             done = True
             # Create the strokes
-            ob_cu.generate_gpencil_strokes(grease_pencil_object=ob_gp, scale_thickness=scale_thickness, sample=sample)
+            ob_cu.generate_gpencil_strokes(grease_pencil_object=ob_gpencil, scale_thickness=scale_thickness, sample=sample)
 
             # Remove temporary curve objects
             delete_curve_object(ob_cu)
@@ -2162,8 +2162,8 @@ def create_gpencil(context, scale):
 
     # Apply scale
     if done:
-        ob_gp.select_set(True)
-        bpy.context.view_layer.objects.active = ob_gp
+        ob_gpencil.select_set(True)
+        bpy.context.view_layer.objects.active = ob_gpencil
         bpy.ops.object.transform_apply()
         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
 
