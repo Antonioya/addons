@@ -2163,7 +2163,7 @@ def create_gpencil(context, scale):
     # Apply scale
     if done:
         ob_gp.select_set(True)
-        context.view_layer.objects.active = ob_gp
+        bpy.context.view_layer.objects.active = ob_gp
         bpy.ops.object.transform_apply()
         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
 
