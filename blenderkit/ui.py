@@ -738,6 +738,14 @@ def draw_callback_2d_search(self, context):
     highlight = (1, 1, 1, .2)
     # highlight = (1, 1, 1, 0.8)
     # background of asset bar
+    if ui_props.hcount>0:
+        #this fixes a draw issue introduced in blender 2.91. draws a very small version of the image to avoid problems
+        # with alpha. Not sure why this works.
+        img = utils.get_thumbnail('arrow_left.png')
+        ui_bgl.draw_image(0, 0, 1,
+                          1,
+                          img,
+                          1)
     if not ui_props.dragging and ui_props.hcount>0:
         search_results = s.get('search results')
         search_results_orig = s.get('search results orig')
@@ -796,7 +804,7 @@ def draw_callback_2d_search(self, context):
                     index = a + ui_props.scrolloffset + b * ui_props.wcount
                     iname = utils.previmg_name(index)
                     img = bpy.data.images.get(iname)
-                    if img is not None:
+                    if img is not None and img.size[0]>0 and img.size[1]>0:
                         w = int(ui_props.thumb_size * img.size[0] / max(img.size[0], img.size[1]))
                         h = int(ui_props.thumb_size * img.size[1] / max(img.size[0], img.size[1]))
                         crop = (0, 0, 1, 1)
