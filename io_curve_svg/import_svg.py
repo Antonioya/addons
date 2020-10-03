@@ -34,7 +34,7 @@ from .svg_util import (units,
 
 #### Common utilities ####
 
-SVGEmptyClasses = {'clskey': None,
+SVGEmptyClasses = {'class_key': None,
                    'fill': None,
                    'stroke': None,
                    'fill-opacity': None,
@@ -207,7 +207,7 @@ def SVGParseTransform(transform):
     return m
 
 
-def SVGGetMaterial(matname, color, context):
+def SVGGetMaterial(material_name, color, context):
     """
     Get material for specified color
     """
@@ -238,7 +238,7 @@ def SVGGetMaterial(matname, color, context):
         diffuse_color[1] = srgb_to_linearrgb(diffuse_color[1])
         diffuse_color[2] = srgb_to_linearrgb(diffuse_color[2])
 
-    mat = bpy.data.materials.new(name=matname)
+    mat = bpy.data.materials.new(name=material_name)
     mat.diffuse_color = (*diffuse_color, 1.0)
 
     materials[color] = mat
@@ -345,7 +345,7 @@ def get_style_from_class(context, classtofind):
             continue
         # Find this style
         if (cls['clskey'] == classtofind):
-            return c
+            return cls
 
     return None
 
@@ -453,6 +453,7 @@ def SVGParseStyles(node, context):
             else:
                 styles['useFill'] = True
                 styles['fill'] = SVGGetMaterial('SVGMat', fill, context)
+
     if styles['useFill'] is None and context['style']:
         styles = context['style'].copy()
     if styles['useFill'] is None:
@@ -1963,7 +1964,7 @@ class SVGGeometryCLASTYLE(SVGGeometryContainer):
                     continue
 
                 key = k[0].strip().lower()
-                cla['clskey'] = key[1:]
+                cla['class_key'] = key[1:]
 
                 params = k[1].split(';')
                 if len(params) < 1:
